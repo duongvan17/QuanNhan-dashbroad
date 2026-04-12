@@ -1,0 +1,559 @@
+import express from 'express';
+import cors from 'cors';
+import fs from 'fs';
+import path from 'path';
+import { connectDb, testConnection, initTables, query, closeDb } from '../main/database';
+import type { DbConfig } from '../shared/types';
+
+const app = express();
+app.use(cors());
+app.use(express.json({ limit: '50mb' }));
+
+const PORT = 3456;
+
+// ============ Config (lưu file) ============
+const CONFIG_FILE = path.join(process.cwd(), '.db-config.json');
+
+function loadConfig(): DbConfig {
+  try {
+    if (fs.existsSync(CONFIG_FILE)) {
+      return JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf-8'));
+    }
+  } catch { /* */ }
+  return { host: '', port: 4000, user: '', password: '', database: '' };
+}
+
+function saveConfig(config: DbConfig): void {
+  fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2), 'utf-8');
+}
+
+let currentConfig: DbConfig = loadConfig();
+
+app.get('/api/config', (_req, res) => {
+  res.json(currentConfig);
+});
+
+app.post('/api/config', (req, res) => {
+  currentConfig = req.body;
+  saveConfig(currentConfig);
+  res.json({ success: true });
+});
+
+app.post('/api/test-connection', async (req, res) => {
+  try {
+    const result = await testConnection(req.body);
+    res.json(result);
+  } catch (err: any) {
+    res.json({ success: false, message: err.message });
+  }
+});
+
+app.post('/api/init-db', async (req, res) => {
+  try {
+    currentConfig = req.body;
+    saveConfig(currentConfig);
+    await connectDb(currentConfig);
+    await initTables();
+    res.json({ success: true, message: 'Kết nối và khởi tạo database thành công!' });
+  } catch (err: any) {
+    res.json({ success: false, message: `Lỗi: ${err.message}` });
+  }
+});
+
+// ============ Units ============
+app.get('/api/units', async (_req, res) => {
+  try {
+    const data = await query('SELECT * FROM units ORDER BY type, name');
+    res.json(data);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/units', async (req, res) => {
+  try {
+    const { name, type, parent_id } = req.body;
+    const result = await query<any>(
+      'INSERT INTO units (name, type, parent_id) VALUES (?, ?, ?)',
+      [name, type, parent_id]
+    );
+    res.json({ id: result.insertId });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/units/:id', async (req, res) => {
+  try {
+    await query('UPDATE units SET name = ? WHERE id = ?', [req.body.name, req.params.id]);
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/units/:id', async (req, res) => {
+  try {
+    await query('DELETE FROM units WHERE id = ?', [req.params.id]);
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============ Students ============
+app.get('/api/students', async (req, res) => {
+  try {
+    const { unit_id, search, page = '1', pageSize = '50' } = req.query as any;
+
+    let sql = 'SELECT s.*, u.name as unit_name FROM students s LEFT JOIN units u ON s.unit_id = u.id WHERE 1=1';
+    const params: any[] = [];
+
+    if (unit_id) {
+      sql += ` AND s.unit_id IN (
+        WITH RECURSIVE unit_tree AS (
+          SELECT id FROM units WHERE id = ?
+          UNION ALL
+          SELECT u2.id FROM units u2 JOIN unit_tree ut ON u2.parent_id = ut.id
+        )
+        SELECT id FROM unit_tree
+      )`;
+      params.push(Number(unit_id));
+    }
+
+    if (search) {
+      sql += ' AND (s.ho_ten LIKE ? OR s.cccd LIKE ?)';
+      params.push(`%${search}%`, `%${search}%`);
+    }
+
+    const countSql = sql.replace('SELECT s.*, u.name as unit_name', 'SELECT COUNT(*) as total');
+    const countResult = await query<any[]>(countSql, params);
+    const total = countResult[0]?.total || 0;
+
+    const p = Math.max(1, parseInt(page) || 1);
+    const ps = Math.max(1, Math.min(500, parseInt(pageSize) || 50));
+    sql += ` ORDER BY s.ho_ten ASC LIMIT ${ps} OFFSET ${(p - 1) * ps}`;
+
+    const rows = await query<any[]>(sql, params);
+    res.json({ data: rows, total, page: p, pageSize: ps });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/students', async (req, res) => {
+  try {
+    const fields = [
+      'unit_id', 'ho_ten', 'hinh_anh', 'ngay_sinh', 'cccd', 'cap_bac', 'chuc_vu',
+      'que_quan', 'dia_chi_thuong_tru',
+      'bo_ho_ten', 'bo_nghe_nghiep', 'bo_ngay_sinh', 'bo_noi_o',
+      'me_ho_ten', 'me_nghe_nghiep', 'me_ngay_sinh', 'me_noi_o',
+    ];
+    // Check trùng: CCCD hoặc (tên + ngày sinh + unit_id)
+    const { ho_ten, cccd, ngay_sinh, unit_id } = req.body;
+    let existing: any[] = [];
+    if (cccd) {
+      existing = await query<any[]>('SELECT id FROM students WHERE cccd = ?', [cccd]);
+    }
+    if (existing.length === 0 && ho_ten && ngay_sinh) {
+      existing = await query<any[]>(
+        'SELECT id FROM students WHERE ho_ten = ? AND ngay_sinh = ? AND unit_id = ?',
+        [ho_ten, ngay_sinh, unit_id]
+      );
+    }
+    if (existing.length > 0) {
+      // Đã tồn tại → update thay vì insert
+      const setClause = fields.filter(f => f !== 'unit_id').map((f) => `${f} = ?`).join(', ');
+      const updateValues = fields.filter(f => f !== 'unit_id').map((f) => req.body[f] ?? null);
+      updateValues.push(existing[0].id);
+      await query(`UPDATE students SET ${setClause} WHERE id = ?`, updateValues);
+      return res.json({ id: existing[0].id, updated: true });
+    }
+
+    const placeholders = fields.map(() => '?').join(', ');
+    const values = fields.map((f) => req.body[f] ?? null);
+    const result = await query<any>(
+      `INSERT INTO students (${fields.join(', ')}) VALUES (${placeholders})`,
+      values
+    );
+    res.json({ id: result.insertId });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/students/:id', async (req, res) => {
+  try {
+    const fields = [
+      'unit_id', 'ho_ten', 'hinh_anh', 'ngay_sinh', 'cccd', 'cap_bac', 'chuc_vu',
+      'que_quan', 'dia_chi_thuong_tru',
+      'bo_ho_ten', 'bo_nghe_nghiep', 'bo_ngay_sinh', 'bo_noi_o',
+      'me_ho_ten', 'me_nghe_nghiep', 'me_ngay_sinh', 'me_noi_o',
+    ];
+    const setClause = fields.map((f) => `${f} = ?`).join(', ');
+    const values = fields.map((f) => req.body[f] ?? null);
+    values.push(Number(req.params.id));
+    await query(`UPDATE students SET ${setClause} WHERE id = ?`, values);
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/students/:id', async (req, res) => {
+  try {
+    await query('DELETE FROM students WHERE id = ?', [Number(req.params.id)]);
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============ Academic Scores ============
+app.get('/api/academic-scores', async (req, res) => {
+  try {
+    const { student_id, unit_id, nam_hoc, hoc_ky } = req.query as any;
+    let sql = `SELECT a.*, s.ho_ten FROM academic_scores a
+               JOIN students s ON a.student_id = s.id WHERE 1=1`;
+    const params: any[] = [];
+
+    if (student_id) { sql += ' AND a.student_id = ?'; params.push(Number(student_id)); }
+    if (nam_hoc) { sql += ' AND a.nam_hoc = ?'; params.push(Number(nam_hoc)); }
+    if (hoc_ky) { sql += ' AND a.hoc_ky = ?'; params.push(Number(hoc_ky)); }
+    if (unit_id) {
+      sql += ` AND s.unit_id IN (
+        WITH RECURSIVE unit_tree AS (
+          SELECT id FROM units WHERE id = ?
+          UNION ALL
+          SELECT u2.id FROM units u2 JOIN unit_tree ut ON u2.parent_id = ut.id
+        )
+        SELECT id FROM unit_tree
+      )`;
+      params.push(Number(unit_id));
+    }
+
+    sql += ' ORDER BY s.ho_ten, a.mon_hoc';
+    const data = await query(sql, params);
+    res.json(data);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/academic-scores', async (req, res) => {
+  try {
+    const { scores } = req.body;
+    for (const s of scores) {
+      if (s.id) {
+        await query('UPDATE academic_scores SET mon_hoc=?, tin_chi=?, diem=? WHERE id=?',
+          [s.mon_hoc, s.tin_chi, s.diem, s.id]);
+      } else {
+        // Check trùng: student + nam_hoc + hoc_ky + mon_hoc
+        const existing = await query<any[]>(
+          'SELECT id FROM academic_scores WHERE student_id=? AND nam_hoc=? AND hoc_ky=? AND mon_hoc=?',
+          [s.student_id, s.nam_hoc, s.hoc_ky, s.mon_hoc]
+        );
+        if (existing.length > 0) {
+          await query('UPDATE academic_scores SET tin_chi=?, diem=? WHERE id=?',
+            [s.tin_chi, s.diem, existing[0].id]);
+        } else {
+          await query('INSERT INTO academic_scores (student_id, nam_hoc, hoc_ky, mon_hoc, tin_chi, diem) VALUES (?,?,?,?,?,?)',
+            [s.student_id, s.nam_hoc, s.hoc_ky, s.mon_hoc, s.tin_chi, s.diem]);
+        }
+      }
+    }
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/academic-scores/:id', async (req, res) => {
+  try {
+    await query('DELETE FROM academic_scores WHERE id = ?', [Number(req.params.id)]);
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============ Discipline Scores ============
+app.get('/api/discipline-scores', async (req, res) => {
+  try {
+    const { student_id, unit_id, nam_hoc, thang } = req.query as any;
+    let sql = `SELECT d.*, s.ho_ten FROM discipline_scores d
+               JOIN students s ON d.student_id = s.id WHERE 1=1`;
+    const params: any[] = [];
+
+    if (student_id) { sql += ' AND d.student_id = ?'; params.push(Number(student_id)); }
+    if (nam_hoc) { sql += ' AND d.nam_hoc = ?'; params.push(Number(nam_hoc)); }
+    if (thang) { sql += ' AND d.thang = ?'; params.push(Number(thang)); }
+    if (unit_id) {
+      sql += ` AND s.unit_id IN (
+        WITH RECURSIVE unit_tree AS (
+          SELECT id FROM units WHERE id = ?
+          UNION ALL
+          SELECT u2.id FROM units u2 JOIN unit_tree ut ON u2.parent_id = ut.id
+        )
+        SELECT id FROM unit_tree
+      )`;
+      params.push(Number(unit_id));
+    }
+
+    sql += ' ORDER BY s.ho_ten';
+    const data = await query(sql, params);
+    res.json(data);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/discipline-scores', async (req, res) => {
+  try {
+    const { scores } = req.body;
+    for (const s of scores) {
+      const vals = [s.tuan_1, s.tuan_2, s.tuan_3, s.tuan_4].filter((v: any) => v != null);
+      const diem_thang = vals.length > 0 ? vals.reduce((a: number, b: number) => a + b, 0) / vals.length : null;
+
+      let xep_loai = null;
+      if (diem_thang != null) {
+        if (diem_thang >= 8) xep_loai = 'Giỏi';
+        else if (diem_thang >= 7.2) xep_loai = 'Khá';
+        else if (diem_thang >= 5) xep_loai = 'Trung bình';
+        else xep_loai = 'Yếu';
+      }
+
+      if (s.id) {
+        await query('UPDATE discipline_scores SET tuan_1=?, tuan_2=?, tuan_3=?, tuan_4=?, diem_thang=?, xep_loai=? WHERE id=?',
+          [s.tuan_1, s.tuan_2, s.tuan_3, s.tuan_4, diem_thang, xep_loai, s.id]);
+      } else {
+        // Check trùng
+        const existing = await query<any[]>(
+          'SELECT id FROM discipline_scores WHERE student_id=? AND nam_hoc=? AND thang=?',
+          [s.student_id, s.nam_hoc, s.thang]
+        );
+        if (existing.length > 0) {
+          await query('UPDATE discipline_scores SET tuan_1=?, tuan_2=?, tuan_3=?, tuan_4=?, diem_thang=?, xep_loai=? WHERE id=?',
+            [s.tuan_1, s.tuan_2, s.tuan_3, s.tuan_4, diem_thang, xep_loai, existing[0].id]);
+        } else {
+          await query('INSERT INTO discipline_scores (student_id, nam_hoc, thang, tuan_1, tuan_2, tuan_3, tuan_4, diem_thang, xep_loai) VALUES (?,?,?,?,?,?,?,?,?)',
+            [s.student_id, s.nam_hoc, s.thang, s.tuan_1, s.tuan_2, s.tuan_3, s.tuan_4, diem_thang, xep_loai]);
+        }
+      }
+    }
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/discipline-scores/:id', async (req, res) => {
+  try {
+    await query('DELETE FROM discipline_scores WHERE id = ?', [Number(req.params.id)]);
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/awards/:id', async (req, res) => {
+  try {
+    await query('DELETE FROM awards WHERE id = ?', [Number(req.params.id)]);
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============ Absences ============
+app.get('/api/absences', async (req, res) => {
+  try {
+    const { student_id, unit_id } = req.query as any;
+    let sql = `SELECT a.*, s.ho_ten FROM absences a
+               JOIN students s ON a.student_id = s.id WHERE 1=1`;
+    const params: any[] = [];
+
+    if (student_id) { sql += ' AND a.student_id = ?'; params.push(Number(student_id)); }
+    if (unit_id) {
+      sql += ` AND s.unit_id IN (
+        WITH RECURSIVE unit_tree AS (
+          SELECT id FROM units WHERE id = ?
+          UNION ALL
+          SELECT u2.id FROM units u2 JOIN unit_tree ut ON u2.parent_id = ut.id
+        )
+        SELECT id FROM unit_tree
+      )`;
+      params.push(Number(unit_id));
+    }
+
+    sql += ' ORDER BY a.ngay_vang DESC';
+    const data = await query(sql, params);
+    res.json(data);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/absences', async (req, res) => {
+  try {
+    const { student_id, ngay_vang, ghi_chu } = req.body;
+    const result = await query<any>(
+      'INSERT INTO absences (student_id, ngay_vang, ghi_chu) VALUES (?,?,?)',
+      [student_id, ngay_vang, ghi_chu || null]
+    );
+    res.json({ id: result.insertId });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/absences/:id', async (req, res) => {
+  try {
+    await query('DELETE FROM absences WHERE id = ?', [Number(req.params.id)]);
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============ Violations ============
+app.get('/api/violations', async (req, res) => {
+  try {
+    const { student_id, unit_id } = req.query as any;
+    let sql = `SELECT v.*, s.ho_ten FROM violations v
+               JOIN students s ON v.student_id = s.id WHERE 1=1`;
+    const params: any[] = [];
+
+    if (student_id) { sql += ' AND v.student_id = ?'; params.push(Number(student_id)); }
+    if (unit_id) {
+      sql += ` AND s.unit_id IN (
+        WITH RECURSIVE unit_tree AS (
+          SELECT id FROM units WHERE id = ?
+          UNION ALL
+          SELECT u2.id FROM units u2 JOIN unit_tree ut ON u2.parent_id = ut.id
+        )
+        SELECT id FROM unit_tree
+      )`;
+      params.push(Number(unit_id));
+    }
+
+    sql += ' ORDER BY v.ngay DESC';
+    const data = await query(sql, params);
+    res.json(data);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/violations', async (req, res) => {
+  try {
+    const { student_id, loai, ngay, ly_do } = req.body;
+    const result = await query<any>(
+      'INSERT INTO violations (student_id, loai, ngay, ly_do) VALUES (?,?,?,?)',
+      [student_id, loai, ngay, ly_do || null]
+    );
+    res.json({ id: result.insertId });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/violations/:id', async (req, res) => {
+  try {
+    await query('DELETE FROM violations WHERE id = ?', [Number(req.params.id)]);
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============ Awards ============
+app.get('/api/awards', async (req, res) => {
+  try {
+    const { student_id, unit_id } = req.query as any;
+    let sql = `SELECT aw.*, s.ho_ten FROM awards aw
+               JOIN students s ON aw.student_id = s.id WHERE 1=1`;
+    const params: any[] = [];
+
+    if (student_id) { sql += ' AND aw.student_id = ?'; params.push(Number(student_id)); }
+    if (unit_id) {
+      sql += ` AND s.unit_id IN (
+        WITH RECURSIVE unit_tree AS (
+          SELECT id FROM units WHERE id = ?
+          UNION ALL
+          SELECT u2.id FROM units u2 JOIN unit_tree ut ON u2.parent_id = ut.id
+        )
+        SELECT id FROM unit_tree
+      )`;
+      params.push(Number(unit_id));
+    }
+
+    sql += ' ORDER BY s.ho_ten';
+    const data = await query(sql, params);
+    res.json(data);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/awards', async (req, res) => {
+  try {
+    const data = req.body;
+    const tong_ket_vals = [data.diem_nam_1, data.diem_nam_2, data.diem_nam_3, data.diem_nam_4]
+      .filter((v: any) => v != null);
+    const avg = tong_ket_vals.length > 0
+      ? tong_ket_vals.reduce((a: number, b: number) => a + b, 0) / tong_ket_vals.length
+      : null;
+
+    let xep_loai = null;
+    if (avg != null) {
+      if (avg >= 8) xep_loai = 'Giỏi';
+      else if (avg >= 7.2) xep_loai = 'Khá';
+      else xep_loai = 'Trung bình';
+    }
+
+    await query(
+      `INSERT INTO awards (student_id, diem_nam_1, diem_nam_2, diem_nam_3, diem_nam_4, tong_ket, xep_loai)
+       VALUES (?,?,?,?,?,?,?)
+       ON DUPLICATE KEY UPDATE diem_nam_1=?, diem_nam_2=?, diem_nam_3=?, diem_nam_4=?, tong_ket=?, xep_loai=?`,
+      [
+        data.student_id, data.diem_nam_1, data.diem_nam_2, data.diem_nam_3, data.diem_nam_4, avg, xep_loai,
+        data.diem_nam_1, data.diem_nam_2, data.diem_nam_3, data.diem_nam_4, avg, xep_loai,
+      ]
+    );
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============ Serve frontend (production) ============
+const distPath = path.join(process.cwd(), 'dist', 'renderer');
+if (fs.existsSync(distPath)) {
+  app.use(express.static(distPath));
+  app.get('{*path}', (_req, res) => {
+    res.sendFile(path.join(distPath, 'index.html'));
+  });
+}
+
+// ============ Start ============
+app.listen(PORT, async () => {
+  console.log(`\n  Server running at http://localhost:${PORT}`);
+  console.log(`  API ready - open http://localhost:5173 in browser\n`);
+
+  // Auto-connect nếu đã có config
+  if (currentConfig.host && currentConfig.user) {
+    try {
+      await connectDb(currentConfig);
+      await initTables();
+      console.log(`  Auto-connected to ${currentConfig.host}:${currentConfig.port}/${currentConfig.database}\n`);
+    } catch (err: any) {
+      console.log(`  Auto-connect failed: ${err.message}\n  → Vào Cài đặt để cấu hình lại\n`);
+    }
+  }
+});
+
+process.on('SIGINT', async () => {
+  await closeDb();
+  process.exit(0);
+});

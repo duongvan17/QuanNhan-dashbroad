@@ -1,0 +1,102 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-size: 15px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow: hidden;
+}
+
+/* Content area scrollable */
+.ant-layout-content {
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+}
+
+#root {
+  height: 100vh;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f0f0f0;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #999;
+}
+
+/* Ant Design overrides for bigger UI */
+.ant-table-thead > tr > th {
+  font-weight: 600 !important;
+  font-size: 14px !important;
+}
+
+.ant-table-tbody > tr > td {
+  font-size: 14px !important;
+}
+
+.ant-table-tbody > tr:hover > td {
+  cursor: pointer;
+}
+
+.ant-menu-item {
+  font-size: 15px !important;
+}
+
+.ant-btn {
+  font-size: 14px !important;
+}
+
+.ant-btn-lg {
+  font-size: 16px !important;
+}
+
+.ant-modal-title {
+  font-size: 18px !important;
+}
+
+.ant-form-item-label > label {
+  font-size: 14px !important;
+  font-weight: 500 !important;
+}
+
+.ant-card-head-title {
+  font-size: 16px !important;
+  font-weight: 600 !important;
+}
+
+.ant-tabs-tab {
+  font-size: 15px !important;
+}
+
+.ant-descriptions-item-label {
+  font-weight: 600 !important;
+}
+
+/* Upload drag area */
+.ant-upload-drag {
+  border-radius: 12px !important;
+}
+
+/* Selection highlight */
+::selection {
+  background: #bae0ff;
+  color: #000;
+}
