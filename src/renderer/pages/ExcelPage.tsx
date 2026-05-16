@@ -5,7 +5,7 @@ import {
 } from 'antd';
 import {
   DownloadOutlined, FileExcelOutlined,
-  InboxOutlined, FileAddOutlined, SaveOutlined, CheckCircleOutlined,
+  InboxOutlined, FileAddOutlined, SaveOutlined,
 } from '@ant-design/icons';
 import {
   getStudents, createStudent, getUnits, getAbsences, getAcademicScores, getDisciplineScores, getAwards,
@@ -118,8 +118,6 @@ const templates = [
 const ExcelPage: React.FC = () => {
   const { message } = App.useApp();
   const [activeTab, setActiveTab] = useState('template');
-  const [importData, setImportData] = useState<any[]>([]);
-  const [importColumns, setImportColumns] = useState<any[]>([]);
   const [units, setUnits] = useState<Unit[]>([]);
   const [exportType, setExportType] = useState('students');
   const [exportUnitId, setExportUnitId] = useState<number | undefined>();

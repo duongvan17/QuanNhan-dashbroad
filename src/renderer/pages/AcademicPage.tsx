@@ -3,7 +3,7 @@ import {
   Card, Table, Button, Modal, Form, Input, InputNumber, Select, Space, Typography,
   Cascader, App, Tag, Popconfirm,
 } from 'antd';
-import { PlusOutlined, BookOutlined, CopyOutlined, DeleteOutlined, EditOutlined } from '@ant-design/icons';
+import { PlusOutlined, BookOutlined, CopyOutlined, DeleteOutlined } from '@ant-design/icons';
 import { getAcademicScores, saveAcademicScores, deleteAcademicScore, getStudents, getUnits } from '../services/api';
 import type { Unit } from '../../shared/types';
 
@@ -210,11 +210,6 @@ const AcademicPage: React.FC = () => {
     return <Tag color={colors[v] || 'default'} style={{ fontSize: 13 }}>{v}</Tag>;
   };
 
-  const renderDiem = (v: number | null) => {
-    if (v == null) return <span style={{ color: '#ccc' }}>-</span>;
-    const color = v >= 8 ? '#52c41a' : v >= 5 ? '#1677ff' : '#ff4d4f';
-    return <span style={{ fontWeight: 600, fontSize: 15, color }}>{v}</span>;
-  };
 
   const handleCopy = () => {
     const headers = ['STT', 'Họ và tên', ...subjects, 'Trung bình', 'Xếp loại'];

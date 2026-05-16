@@ -1,10 +1,6 @@
 import Store from 'electron-store';
 import type { DbConfig } from '../shared/types';
 
-interface AppStore {
-  dbConfig: DbConfig;
-}
-
 const store = new (Store as any)({
   defaults: {
     dbConfig: {

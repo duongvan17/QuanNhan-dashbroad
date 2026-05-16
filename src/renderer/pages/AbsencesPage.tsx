@@ -19,7 +19,6 @@ const AbsencesPage: React.FC = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [filters, setFilters] = useState<any>({});
   const [form] = Form.useForm();
-  const [viewMode, setViewMode] = useState<'student' | 'list'>('student');
 
   const loadUnits = async () => { try { setUnits(await getUnits()); } catch { /* */ } };
   const loadStudents = async (unit_id?: number) => {

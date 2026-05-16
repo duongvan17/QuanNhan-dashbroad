@@ -3,7 +3,7 @@ import { Card, Form, Input, InputNumber, Button, Alert, Space, Typography, Divid
 import {
   DatabaseOutlined, CheckCircleOutlined, LoadingOutlined,
   CloudOutlined, HddOutlined, LaptopOutlined, GlobalOutlined,
-  SafetyOutlined, RocketOutlined, CopyOutlined, InfoCircleOutlined,
+  SafetyOutlined, RocketOutlined, InfoCircleOutlined,
 } from '@ant-design/icons';
 import { getDbConfig, testConnection, initDatabase } from '../services/api';
 import type { DbConfig } from '../../shared/types';

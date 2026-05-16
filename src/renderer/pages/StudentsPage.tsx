@@ -1,23 +1,17 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   Card, Table, Button, Modal, Form, Input, Select, DatePicker, Space, Typography,
-  Popconfirm, App, Drawer, Descriptions, Cascader, Tag, Tooltip, Image, Upload,
+  Popconfirm, App, Drawer, Descriptions, Cascader, Tooltip, Image, Upload,
 } from 'antd';
 import {
   PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined,
   EyeOutlined, UserOutlined, CopyOutlined, UploadOutlined,
 } from '@ant-design/icons';
 import { getStudents, createStudent, updateStudent, deleteStudent, getUnits } from '../services/api';
-import type { Unit, UnitType } from '../../shared/types';
+import type { Unit } from '../../shared/types';
 import dayjs from 'dayjs';
 
-const { Title, Text } = Typography;
-
-const unitTypeLabels: Record<UnitType, string> = {
-  tieu_doan: 'Tiểu đoàn',
-  dai_doi: 'Đại đội',
-  trung_doi: 'Trung đội',
-};
+const { Title } = Typography;
 
 const StudentsPage: React.FC = () => {
   const { message } = App.useApp();
