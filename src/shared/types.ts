@@ -25,6 +25,8 @@ export interface AuthResult {
 
 export interface AuthStatus {
   dbConnected: boolean;
+  // true khi tài khoản admin mặc định chưa đổi mật khẩu lần đầu
+  needsSetup: boolean;
 }
 
 // ============ Đơn vị tổ chức ============

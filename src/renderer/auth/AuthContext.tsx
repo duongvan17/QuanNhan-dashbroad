@@ -7,6 +7,7 @@ import {
 interface AuthContextValue {
   loading: boolean;
   dbConnected: boolean;
+  needsSetup: boolean;
   user: User | null;
   isAdmin: boolean;
   login: (username: string, password: string) => Promise<void>;
@@ -27,6 +28,7 @@ export const useAuth = (): AuthContextValue => {
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [dbConnected, setDbConnected] = useState(false);
+  const [needsSetup, setNeedsSetup] = useState(false);
   const [user, setUser] = useState<User | null>(null);
 
   const bootstrap = useCallback(async () => {
@@ -34,6 +36,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const status = await getAuthStatus();
       setDbConnected(!!status.dbConnected);
+      setNeedsSetup(!!status.needsSetup);
       if (status.dbConnected && tokenStore.get()) {
         try {
           const me = await apiMe();
@@ -82,6 +85,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const refreshStatus = useCallback(async () => {
     const status = await getAuthStatus();
     setDbConnected(!!status.dbConnected);
+    setNeedsSetup(!!status.needsSetup);
   }, []);
 
   return (
@@ -89,6 +93,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       value={{
         loading,
         dbConnected,
+        needsSetup,
         user,
         isAdmin: user?.role === 'admin',
         login,

@@ -4,7 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import { connectDb, testConnection, initTables, query, closeDb, isConnected } from '../main/database';
 import {
-  ensureUsersTable, hasAnyUser, login, register, getUserById, changePassword,
+  ensureUsersTable, hasAnyUser, needsSetup, login, register, getUserById, changePassword,
   listUsers, adminCreateUser, adminDeleteUser, adminSetRole, adminResetPassword,
   verifyToken, type TokenPayload,
 } from '../main/auth';
@@ -96,8 +96,8 @@ app.post('/api/init-db', requireConfigAccess, async (req, res) => {
 });
 
 // ============ Auth ============
-app.get('/api/auth/status', (_req, res) => {
-  res.json({ dbConnected: isConnected() });
+app.get('/api/auth/status', async (_req, res) => {
+  res.json({ dbConnected: isConnected(), needsSetup: await needsSetup() });
 });
 
 app.post('/api/auth/login', async (req, res) => {

@@ -4,7 +4,7 @@ import type { DbConfig, UserRole } from '../shared/types';
 import { getDbConfig, setDbConfig } from './config';
 import { connectDb, testConnection, initTables, query, isConnected } from './database';
 import {
-  ensureUsersTable, hasAnyUser, login, register, getUserById, changePassword,
+  ensureUsersTable, hasAnyUser, needsSetup, login, register, getUserById, changePassword,
   listUsers, adminCreateUser, adminDeleteUser, adminSetRole, adminResetPassword,
   verifyToken, type TokenPayload,
 } from './auth';
@@ -32,8 +32,8 @@ function handle(
 
 export function registerIpcHandlers(): void {
   // ============ Auth ============
-  handle(IPC.AUTH_STATUS, 'open', () => {
-    return { dbConnected: isConnected() };
+  handle(IPC.AUTH_STATUS, 'open', async () => {
+    return { dbConnected: isConnected(), needsSetup: await needsSetup() };
   });
 
   handle(IPC.AUTH_LOGIN, 'open', async (_event, data: { username: string; password: string }) => {

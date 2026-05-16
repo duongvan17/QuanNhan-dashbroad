@@ -95,6 +95,20 @@ export async function hasAnyUser(): Promise<boolean> {
   }
 }
 
+// true khi admin mặc định ('admin') chưa hoàn tất đổi mật khẩu lần đầu.
+// Dùng để chỉ hiện gợi ý "admin / admin123" ở màn đăng nhập lúc setup.
+export async function needsSetup(): Promise<boolean> {
+  if (!isConnected()) return false;
+  try {
+    const rows = await query<any[]>(
+      "SELECT 1 FROM users WHERE username = 'admin' AND must_change_password = 1 LIMIT 1"
+    );
+    return rows.length > 0;
+  } catch {
+    return false;
+  }
+}
+
 // ============ Thao tác xác thực ============
 export async function login(username: string, password: string): Promise<AuthResult> {
   const rows = await query<any[]>('SELECT * FROM users WHERE username = ?', [String(username || '').trim()]);

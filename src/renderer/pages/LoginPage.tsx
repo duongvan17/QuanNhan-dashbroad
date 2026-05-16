@@ -6,7 +6,7 @@ import { useAuth } from '../auth/AuthContext';
 const { Title, Text } = Typography;
 
 const LoginPage: React.FC = () => {
-  const { login, register } = useAuth();
+  const { login, register, needsSetup } = useAuth();
   const { message } = App.useApp();
   const [tab, setTab] = useState('login');
   const [loading, setLoading] = useState(false);
@@ -77,9 +77,11 @@ const LoginPage: React.FC = () => {
                   <Button type="primary" block size="large" loading={loading} onClick={handleLogin}>
                     Đăng nhập
                   </Button>
-                  <Text type="secondary" style={{ display: 'block', marginTop: 12, fontSize: 13 }}>
-                    Lần đầu sử dụng: đăng nhập <b>admin</b> / <b>admin123</b> rồi đổi mật khẩu.
-                  </Text>
+                  {needsSetup && (
+                    <Text type="secondary" style={{ display: 'block', marginTop: 12, fontSize: 13 }}>
+                      Lần đầu sử dụng: đăng nhập <b>admin</b> / <b>admin123</b> rồi đổi mật khẩu.
+                    </Text>
+                  )}
                 </Form>
               ),
             },

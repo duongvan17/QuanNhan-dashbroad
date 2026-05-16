@@ -53,8 +53,7 @@
       "public/**/*"
     ],
     "win": {
-      "target": "nsis",
-      "icon": "public/icon.png"
+      "target": "nsis"
     },
     "nsis": {
       "oneClick": false,
