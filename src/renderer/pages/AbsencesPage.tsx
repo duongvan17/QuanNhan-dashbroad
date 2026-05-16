@@ -151,13 +151,13 @@ const AbsencesPage: React.FC = () => {
 
       <Row gutter={16} style={{ marginBottom: 20 }}>
         <Col xs={8} sm={6} md={4}>
-          <Card size="small"><Statistic title="Tổng lượt vắng" value={absences.length} valueStyle={{ color: '#faad14', fontSize: 28 }} /></Card>
+          <Card size="small"><Statistic title="Tổng lượt vắng" value={absences.length} styles={{ content: { color: '#faad14', fontSize: 28 } }} /></Card>
         </Col>
         <Col xs={8} sm={6} md={4}>
-          <Card size="small"><Statistic title="Số HV vắng" value={soHvVang} valueStyle={{ color: '#ff4d4f', fontSize: 28 }} /></Card>
+          <Card size="small"><Statistic title="Số HV vắng" value={soHvVang} styles={{ content: { color: '#ff4d4f', fontSize: 28 } }} /></Card>
         </Col>
         <Col xs={8} sm={6} md={4}>
-          <Card size="small"><Statistic title="HV không vắng" value={hvKhongVang} valueStyle={{ color: '#52c41a', fontSize: 28 }} /></Card>
+          <Card size="small"><Statistic title="HV không vắng" value={hvKhongVang} styles={{ content: { color: '#52c41a', fontSize: 28 } }} /></Card>
         </Col>
       </Row>
 

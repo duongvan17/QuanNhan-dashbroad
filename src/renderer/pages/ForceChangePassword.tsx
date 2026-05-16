@@ -39,7 +39,7 @@ const ForceChangePassword: React.FC = () => {
           <Text type="secondary">Tài khoản <b>{user?.username}</b> cần đổi mật khẩu trước khi sử dụng.</Text>
         </div>
 
-        {error && <Alert type="error" showIcon message={error} style={{ marginBottom: 16 }} />}
+        {error && <Alert type="error" showIcon title={error} style={{ marginBottom: 16 }} />}
 
         <Form form={form} layout="vertical" requiredMark={false}>
           <Form.Item name="oldPassword" label="Mật khẩu hiện tại" rules={[{ required: true, message: 'Nhập mật khẩu hiện tại' }]}>

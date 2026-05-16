@@ -164,13 +164,13 @@ const ViolationsPage: React.FC = () => {
 
       <Row gutter={16} style={{ marginBottom: 20 }}>
         <Col xs={8} sm={6} md={4}>
-          <Card size="small"><Statistic title="Khiển trách" value={countByType('khien_trach')} valueStyle={{ color: '#faad14', fontSize: 28 }} /></Card>
+          <Card size="small"><Statistic title="Khiển trách" value={countByType('khien_trach')} styles={{ content: { color: '#faad14', fontSize: 28 } }} /></Card>
         </Col>
         <Col xs={8} sm={6} md={4}>
-          <Card size="small"><Statistic title="Cảnh cáo" value={countByType('canh_cao')} valueStyle={{ color: '#ff4d4f', fontSize: 28 }} /></Card>
+          <Card size="small"><Statistic title="Cảnh cáo" value={countByType('canh_cao')} styles={{ content: { color: '#ff4d4f', fontSize: 28 } }} /></Card>
         </Col>
         <Col xs={8} sm={6} md={4}>
-          <Card size="small"><Statistic title="Kỷ luật" value={countByType('ky_luat')} valueStyle={{ color: '#8B0000', fontSize: 28 }} /></Card>
+          <Card size="small"><Statistic title="Kỷ luật" value={countByType('ky_luat')} styles={{ content: { color: '#8B0000', fontSize: 28 } }} /></Card>
         </Col>
       </Row>
 

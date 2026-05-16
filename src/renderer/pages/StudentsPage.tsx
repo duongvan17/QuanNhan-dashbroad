@@ -383,7 +383,7 @@ const StudentsPage: React.FC = () => {
         title={selectedStudent?.ho_ten}
         open={detailOpen}
         onClose={() => setDetailOpen(false)}
-        width={600}
+        size="large"
       >
         {selectedStudent && (
           <>

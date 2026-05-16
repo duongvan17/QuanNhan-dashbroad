@@ -225,7 +225,7 @@ const MainLayout: React.FC = () => {
           {!isAdmin && (
             <Alert
               type="info" showIcon style={{ marginBottom: 16 }}
-              message="Tài khoản chỉ xem — bạn có thể xem dữ liệu nhưng không thể thêm/sửa/xóa. Liên hệ admin nếu cần quyền chỉnh sửa."
+              title="Tài khoản chỉ xem — bạn có thể xem dữ liệu nhưng không thể thêm/sửa/xóa. Liên hệ admin nếu cần quyền chỉnh sửa."
             />
           )}
           {renderPage()}
@@ -245,7 +245,7 @@ const BootstrapSetup: React.FC = () => {
       <Content style={{ padding: 28, background: '#f5f5f5', overflowY: 'auto', height: '100vh' }}>
         <Alert
           type="warning" showIcon style={{ marginBottom: 16 }}
-          message="Thiết lập lần đầu"
+          title="Thiết lập lần đầu"
           description="Chưa kết nối Database. Hãy cấu hình kết nối bên dưới và bấm “Kết nối & Khởi tạo Database”. Sau đó bấm nút tiếp tục để đăng nhập (tài khoản admin mặc định: admin / admin123)."
           action={<Button type="primary" onClick={refreshStatus}>Đã kết nối xong → Tiếp tục</Button>}
         />
@@ -262,9 +262,8 @@ const AppContent: React.FC = () => {
   if (loading) {
     return (
       <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Spin size="large" tip="Đang tải...">
-          <div style={{ padding: 50 }} />
-        </Spin>
+        <Spin size="large" />
+        <span style={{ marginLeft: 12, color: '#888' }}>Đang tải...</span>
       </div>
     );
   }
@@ -276,7 +275,7 @@ const AppContent: React.FC = () => {
 
 const App: React.FC = () => (
   <ConfigProvider locale={viVN} theme={themeConfig}>
-    <AntdApp component={false}>
+    <AntdApp>
       <AuthProvider>
         <AppContent />
       </AuthProvider>

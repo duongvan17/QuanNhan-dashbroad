@@ -132,7 +132,7 @@ const SettingsPage: React.FC = () => {
             <Form.Item>
               <Alert
                 type={result.success ? 'success' : 'error'}
-                message={result.message}
+                title={result.message}
                 showIcon
                 icon={result.success ? <CheckCircleOutlined /> : undefined}
               />
@@ -176,17 +176,17 @@ const SettingsPage: React.FC = () => {
                   type="success"
                   style={{ marginBottom: 20 }}
                   showIcon
-                  message="Khuyến nghị cho hầu hết người dùng"
+                  title="Khuyến nghị cho hầu hết người dùng"
                   description="TiDB Cloud miễn phí 5GB, không cần cài đặt server, nhiều máy kết nối qua internet. Phù hợp khi các máy ở nhiều nơi khác nhau."
                 />
 
                 <Steps
-                  direction="vertical"
+                  orientation="vertical"
                   current={-1}
                   items={[
                     {
                       title: <Text strong style={{ fontSize: 16 }}>Tạo tài khoản TiDB Cloud</Text>,
-                      description: (
+                      content: (
                         <StepContent>
                           <ul style={{ paddingLeft: 20, margin: 0 }}>
                             <li>Truy cập <Text strong>tidbcloud.com</Text></li>
@@ -198,7 +198,7 @@ const SettingsPage: React.FC = () => {
                     },
                     {
                       title: <Text strong style={{ fontSize: 16 }}>Tạo Cluster miễn phí</Text>,
-                      description: (
+                      content: (
                         <StepContent>
                           <ul style={{ paddingLeft: 20, margin: 0 }}>
                             <li>Click <Tag color="blue">Create Cluster</Tag></li>
@@ -212,7 +212,7 @@ const SettingsPage: React.FC = () => {
                     },
                     {
                       title: <Text strong style={{ fontSize: 16 }}>Lấy thông tin kết nối</Text>,
-                      description: (
+                      content: (
                         <StepContent>
                           <ul style={{ paddingLeft: 20, margin: 0 }}>
                             <li>Vào cluster → click <Tag color="blue">Connect</Tag></li>
@@ -234,7 +234,7 @@ const SettingsPage: React.FC = () => {
                     },
                     {
                       title: <Text strong style={{ fontSize: 16 }}>Tạo Database</Text>,
-                      description: (
+                      content: (
                         <StepContent>
                           <ul style={{ paddingLeft: 20, margin: 0 }}>
                             <li>Trong trang Connect, click tab <Tag>SQL Editor</Tag> (hoặc vào mục <Text strong>Chat2Query</Text>)</li>
@@ -246,7 +246,7 @@ const SettingsPage: React.FC = () => {
                     },
                     {
                       title: <Text strong style={{ fontSize: 16 }}>Điền vào form phía trên</Text>,
-                      description: (
+                      content: (
                         <StepContent>
                           <ul style={{ paddingLeft: 20, margin: 0 }}>
                             <li>Copy thông tin Host, Port, User, Password vào form trên</li>
@@ -265,10 +265,10 @@ const SettingsPage: React.FC = () => {
                     },
                     {
                       title: <Text strong style={{ fontSize: 16 }}>Cài trên các máy khác</Text>,
-                      description: (
+                      content: (
                         <StepContent>
                           <Alert type="info" showIcon style={{ marginBottom: 8 }}
-                            message="Tất cả các máy nhập CÙNG thông tin kết nối → dùng chung 1 database"
+                            title="Tất cả các máy nhập CÙNG thông tin kết nối → dùng chung 1 database"
                           />
                           <ul style={{ paddingLeft: 20, margin: 0 }}>
                             <li>Cài app trên máy khác</li>
@@ -312,7 +312,7 @@ const SettingsPage: React.FC = () => {
                   type="info"
                   style={{ marginBottom: 20 }}
                   showIcon
-                  message="Phù hợp khi các máy cùng mạng LAN (cùng cơ quan, đơn vị)"
+                  title="Phù hợp khi các máy cùng mạng LAN (cùng cơ quan, đơn vị)"
                   description="Cài MySQL trên 1 máy chủ, các máy khác cùng mạng LAN kết nối tới. Không cần internet, tốc độ nhanh hơn."
                 />
 
@@ -321,12 +321,12 @@ const SettingsPage: React.FC = () => {
                 </Title>
 
                 <Steps
-                  direction="vertical"
+                  orientation="vertical"
                   current={-1}
                   items={[
                     {
                       title: <Text strong style={{ fontSize: 16 }}>Cài MySQL Server</Text>,
-                      description: (
+                      content: (
                         <StepContent>
                           <Paragraph>Tải MySQL Community Server:</Paragraph>
                           <ul style={{ paddingLeft: 20, margin: 0 }}>
@@ -340,7 +340,7 @@ const SettingsPage: React.FC = () => {
                     },
                     {
                       title: <Text strong style={{ fontSize: 16 }}>Tạo Database</Text>,
-                      description: (
+                      content: (
                         <StepContent>
                           <Paragraph>Mở <Text strong>MySQL Command Line Client</Text> hoặc <Text strong>MySQL Workbench</Text>, đăng nhập bằng root:</Paragraph>
                           <div style={{ background: '#1e1e1e', color: '#d4d4d4', padding: 16, borderRadius: 8, fontFamily: 'monospace', fontSize: 13, lineHeight: 2 }}>
@@ -351,7 +351,7 @@ const SettingsPage: React.FC = () => {
                     },
                     {
                       title: <Text strong style={{ fontSize: 16 }}>Tạo User cho app (khuyến nghị)</Text>,
-                      description: (
+                      content: (
                         <StepContent>
                           <Paragraph>Tạo user riêng thay vì dùng root:</Paragraph>
                           <div style={{ background: '#1e1e1e', color: '#d4d4d4', padding: 16, borderRadius: 8, fontFamily: 'monospace', fontSize: 13, lineHeight: 2 }}>
@@ -360,14 +360,14 @@ const SettingsPage: React.FC = () => {
                             <div><span style={{ color: '#569cd6' }}>FLUSH PRIVILEGES</span>;</div>
                           </div>
                           <Alert type="warning" showIcon style={{ marginTop: 12 }}
-                            message={<span>Ký tự <CopyText text="'%'" /> cho phép kết nối từ mọi máy. Nếu muốn giới hạn chỉ mạng LAN, đổi thành <CopyText text="'192.168.1.%'" /></span>}
+                            title={<span>Ký tự <CopyText text="'%'" /> cho phép kết nối từ mọi máy. Nếu muốn giới hạn chỉ mạng LAN, đổi thành <CopyText text="'192.168.1.%'" /></span>}
                           />
                         </StepContent>
                       ),
                     },
                     {
                       title: <Text strong style={{ fontSize: 16 }}>Mở Firewall cho port 3306</Text>,
-                      description: (
+                      content: (
                         <StepContent>
                           <Paragraph>Để các máy khác kết nối được, cần mở port MySQL:</Paragraph>
                           <div style={{ background: '#1e1e1e', color: '#d4d4d4', padding: 16, borderRadius: 8, fontFamily: 'monospace', fontSize: 13, lineHeight: 2 }}>
@@ -387,7 +387,7 @@ const SettingsPage: React.FC = () => {
                     },
                     {
                       title: <Text strong style={{ fontSize: 16 }}>Xác định IP máy chủ</Text>,
-                      description: (
+                      content: (
                         <StepContent>
                           <Paragraph>Mở CMD trên máy chủ, chạy:</Paragraph>
                           <div style={{ background: '#1e1e1e', color: '#d4d4d4', padding: 16, borderRadius: 8, fontFamily: 'monospace', fontSize: 13, lineHeight: 2 }}>
@@ -395,14 +395,14 @@ const SettingsPage: React.FC = () => {
                             <div style={{ color: '#6a9955' }}>:: Tìm dòng IPv4 Address, ví dụ: 192.168.1.100</div>
                           </div>
                           <Alert type="info" showIcon style={{ marginTop: 8 }}
-                            message="Ghi lại địa chỉ IP này (ví dụ 192.168.1.100) để nhập vào các máy khác"
+                            title="Ghi lại địa chỉ IP này (ví dụ 192.168.1.100) để nhập vào các máy khác"
                           />
                         </StepContent>
                       ),
                     },
                     {
                       title: <Text strong style={{ fontSize: 16 }}>Điền form trên máy chủ</Text>,
-                      description: (
+                      content: (
                         <StepContent>
                           <div style={{ background: '#f6f8fa', padding: 16, borderRadius: 8, fontFamily: 'monospace', fontSize: 13, lineHeight: 2.2 }}>
                             Host: <Text strong>localhost</Text> (hoặc <Text strong>127.0.0.1</Text>)<br />
@@ -428,12 +428,12 @@ const SettingsPage: React.FC = () => {
                 </Title>
 
                 <Steps
-                  direction="vertical"
+                  orientation="vertical"
                   current={-1}
                   items={[
                     {
                       title: <Text strong style={{ fontSize: 16 }}>Kiểm tra cùng mạng</Text>,
-                      description: (
+                      content: (
                         <StepContent>
                           <ul style={{ paddingLeft: 20, margin: 0 }}>
                             <li>Đảm bảo máy khách và máy chủ kết nối <Text strong>cùng mạng WiFi / LAN</Text></li>
@@ -444,7 +444,7 @@ const SettingsPage: React.FC = () => {
                     },
                     {
                       title: <Text strong style={{ fontSize: 16 }}>Cài app & điền thông tin</Text>,
-                      description: (
+                      content: (
                         <StepContent>
                           <Paragraph>Cài app trên máy khác, mở lên, vào <Text strong>Cài đặt</Text> và điền:</Paragraph>
                           <div style={{ background: '#f6f8fa', padding: 16, borderRadius: 8, fontFamily: 'monospace', fontSize: 13, lineHeight: 2.2 }}>
@@ -463,7 +463,7 @@ const SettingsPage: React.FC = () => {
                     },
                     {
                       title: <Text strong style={{ fontSize: 16 }}>Kết nối & sử dụng</Text>,
-                      description: (
+                      content: (
                         <StepContent>
                           <ul style={{ paddingLeft: 20, margin: 0 }}>
                             <li>Bấm <Text strong>Test kết nối</Text> → nếu OK → bấm <Text strong>Kết nối & Khởi tạo</Text></li>

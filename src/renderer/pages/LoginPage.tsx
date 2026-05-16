@@ -56,7 +56,7 @@ const LoginPage: React.FC = () => {
           <Text type="secondary">Đăng nhập để tiếp tục</Text>
         </div>
 
-        {error && <Alert type="error" showIcon message={error} style={{ marginBottom: 16 }} />}
+        {error && <Alert type="error" showIcon title={error} style={{ marginBottom: 16 }} />}
 
         <Tabs
           activeKey={tab}

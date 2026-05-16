@@ -750,7 +750,7 @@ const ExcelPage: React.FC = () => {
               <Alert
                 type="info" showIcon
                 style={{ marginBottom: 20 }}
-                message="Tải template mẫu về, điền dữ liệu theo đúng format, sau đó import vào app."
+                title="Tải template mẫu về, điền dữ liệu theo đúng format, sau đó import vào app."
               />
 
               <Button
@@ -828,7 +828,7 @@ const ExcelPage: React.FC = () => {
                 <Card title={`Đã đọc ${importSheets.length} sheet`}>
                   <Alert
                     type="info"
-                    message="Kiểm tra dữ liệu từng sheet bên dưới. Chọn đơn vị rồi bấm Import tất cả vào Database."
+                    title="Kiểm tra dữ liệu từng sheet bên dưới. Chọn đơn vị rồi bấm Import tất cả vào Database."
                     style={{ marginBottom: 16 }}
                     showIcon
                   />
@@ -864,7 +864,7 @@ const ExcelPage: React.FC = () => {
                       type={importResult.failed === 0 ? 'success' : 'warning'}
                       showIcon
                       style={{ marginBottom: 16 }}
-                      message={`Import xong: ${importResult.success} thành công${importResult.failed > 0 ? `, ${importResult.failed} lỗi` : ''}`}
+                      title={`Import xong: ${importResult.success} thành công${importResult.failed > 0 ? `, ${importResult.failed} lỗi` : ''}`}
                       description={importResult.details.length > 0 ? (
                         <ul style={{ margin: '8px 0 0 0', paddingLeft: 20 }}>
                           {importResult.details.map((d, i) => <li key={i}>{d}</li>)}
@@ -942,7 +942,7 @@ const ExcelPage: React.FC = () => {
 
                 <Alert
                   type="info"
-                  message="File Excel sẽ được xuất với template chuẩn: header đẹp, border, format sẵn."
+                  title="File Excel sẽ được xuất với template chuẩn: header đẹp, border, format sẵn."
                   showIcon
                 />
               </Space>
