@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-  Card, Button, Upload, Table, Space, Typography, Tabs, Select, message,
+  Card, Button, Upload, Table, Space, Typography, Tabs, Select, App,
   Alert, Cascader, Divider, Row, Col, Tag,
 } from 'antd';
 import {
@@ -116,6 +116,7 @@ const templates = [
 ];
 
 const ExcelPage: React.FC = () => {
+  const { message } = App.useApp();
   const [activeTab, setActiveTab] = useState('template');
   const [importData, setImportData] = useState<any[]>([]);
   const [importColumns, setImportColumns] = useState<any[]>([]);

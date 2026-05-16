@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   Card, Table, Button, Modal, Form, Select, DatePicker, Input, Space, Typography,
-  Cascader, message, Popconfirm, Tag, Row, Col, Statistic,
+  Cascader, App, Popconfirm, Tag, Row, Col, Statistic,
 } from 'antd';
 import { PlusOutlined, DeleteOutlined, CalendarOutlined, CopyOutlined } from '@ant-design/icons';
 import { getAbsences, createAbsence, deleteAbsence, getStudents, getUnits } from '../services/api';
@@ -11,6 +11,7 @@ import dayjs from 'dayjs';
 const { Title } = Typography;
 
 const AbsencesPage: React.FC = () => {
+  const { message } = App.useApp();
   const [absences, setAbsences] = useState<any[]>([]);
   const [units, setUnits] = useState<Unit[]>([]);
   const [students, setStudents] = useState<any[]>([]);

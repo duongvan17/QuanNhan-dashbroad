@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Card, Tree, Button, Modal, Form, Input, Select, Space, Typography, Popconfirm, message, Empty } from 'antd';
+import { Card, Tree, Button, Modal, Form, Input, Select, Space, Typography, Popconfirm, App, Empty } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, ApartmentOutlined } from '@ant-design/icons';
 import { getUnits, createUnit, updateUnit, deleteUnit } from '../services/api';
 import type { Unit, UnitType } from '../../shared/types';
@@ -13,6 +13,7 @@ const unitTypeLabels: Record<UnitType, string> = {
 };
 
 const UnitsPage: React.FC = () => {
+  const { message } = App.useApp();
   const [units, setUnits] = useState<Unit[]>([]);
   const [loading, setLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);

@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   Card, Table, Button, Modal, Form, Select, DatePicker, Input, Space, Typography,
-  Cascader, message, Popconfirm, Tag, Row, Col, Statistic,
+  Cascader, App, Popconfirm, Tag, Row, Col, Statistic,
 } from 'antd';
 import { PlusOutlined, DeleteOutlined, WarningOutlined, CopyOutlined } from '@ant-design/icons';
 import { getViolations, createViolation, deleteViolation, getStudents, getUnits } from '../services/api';
@@ -17,6 +17,7 @@ const violationLabels: Record<string, { text: string; color: string }> = {
 };
 
 const ViolationsPage: React.FC = () => {
+  const { message } = App.useApp();
   const [violations, setViolations] = useState<any[]>([]);
   const [units, setUnits] = useState<Unit[]>([]);
   const [students, setStudents] = useState<any[]>([]);

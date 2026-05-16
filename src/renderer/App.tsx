@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ConfigProvider, Layout, Menu, theme, Typography, Avatar } from 'antd';
+import { ConfigProvider, Layout, Menu, theme, Typography, Avatar, App as AntdApp } from 'antd';
 import {
   HomeOutlined,
   UserOutlined,
@@ -111,6 +111,7 @@ const App: React.FC = () => {
         },
       }}
     >
+      <AntdApp component={false}>
       <Layout style={{ minHeight: '100vh' }}>
         <Sider
           collapsible
@@ -187,6 +188,7 @@ const App: React.FC = () => {
           </Content>
         </Layout>
       </Layout>
+      </AntdApp>
     </ConfigProvider>
   );
 };

@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   Card, Table, Button, Modal, Form, InputNumber, Select, Space, Typography,
-  Cascader, message, Tag, Popconfirm,
+  Cascader, App, Tag, Popconfirm,
 } from 'antd';
 import { PlusOutlined, TrophyOutlined, CopyOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import { getAwards, saveAward, deleteAward, getStudents, getUnits } from '../services/api';
@@ -10,6 +10,7 @@ import type { Unit } from '../../shared/types';
 const { Title } = Typography;
 
 const AwardsPage: React.FC = () => {
+  const { message } = App.useApp();
   const [awards, setAwards] = useState<any[]>([]);
   const [units, setUnits] = useState<Unit[]>([]);
   const [students, setStudents] = useState<any[]>([]);

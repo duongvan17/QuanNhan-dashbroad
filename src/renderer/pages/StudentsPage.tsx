@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   Card, Table, Button, Modal, Form, Input, Select, DatePicker, Space, Typography,
-  Popconfirm, message, Drawer, Descriptions, Cascader, Tag, Tooltip, Image,
+  Popconfirm, App, Drawer, Descriptions, Cascader, Tag, Tooltip, Image,
 } from 'antd';
 import {
   PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined,
@@ -20,6 +20,7 @@ const unitTypeLabels: Record<UnitType, string> = {
 };
 
 const StudentsPage: React.FC = () => {
+  const { message } = App.useApp();
   const [students, setStudents] = useState<any[]>([]);
   const [units, setUnits] = useState<Unit[]>([]);
   const [total, setTotal] = useState(0);

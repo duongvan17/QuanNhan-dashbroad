@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   Card, Table, Button, Modal, Form, InputNumber, Select, Space, Typography,
-  Cascader, message, Tag, Popconfirm,
+  Cascader, App, Tag, Popconfirm,
 } from 'antd';
 import { PlusOutlined, StarOutlined, CopyOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import { getDisciplineScores, saveDisciplineScores, deleteDisciplineScore, getStudents, getUnits } from '../services/api';
@@ -10,6 +10,7 @@ import type { Unit } from '../../shared/types';
 const { Title } = Typography;
 
 const DisciplinePage: React.FC = () => {
+  const { message } = App.useApp();
   const [scores, setScores] = useState<any[]>([]);
   const [units, setUnits] = useState<Unit[]>([]);
   const [students, setStudents] = useState<any[]>([]);
