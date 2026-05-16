@@ -133,10 +133,12 @@ export const IPC = {
   // Academic Scores
   SCORES_ACADEMIC_GET: 'scores:academic:get',
   SCORES_ACADEMIC_SAVE: 'scores:academic:save',
+  SCORES_ACADEMIC_DELETE: 'scores:academic:delete',
 
   // Discipline Scores
   SCORES_DISCIPLINE_GET: 'scores:discipline:get',
   SCORES_DISCIPLINE_SAVE: 'scores:discipline:save',
+  SCORES_DISCIPLINE_DELETE: 'scores:discipline:delete',
 
   // Absences
   ABSENCES_GET: 'absences:get',
@@ -151,6 +153,7 @@ export const IPC = {
   // Awards
   AWARDS_GET: 'awards:get',
   AWARDS_SAVE: 'awards:save',
+  AWARDS_DELETE: 'awards:delete',
 
   // Excel
   EXCEL_IMPORT: 'excel:import',

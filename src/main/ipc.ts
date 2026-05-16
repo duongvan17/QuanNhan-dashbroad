@@ -176,6 +176,11 @@ export function registerIpcHandlers(): void {
     return { success: true };
   });
 
+  ipcMain.handle(IPC.SCORES_ACADEMIC_DELETE, async (_event, id: number) => {
+    await query('DELETE FROM academic_scores WHERE id = ?', [id]);
+    return { success: true };
+  });
+
   // ============ Discipline Scores ============
   ipcMain.handle(IPC.SCORES_DISCIPLINE_GET, async (_event, filters: { student_id?: number; unit_id?: number; nam_hoc?: number; thang?: number }) => {
     let sql = `SELECT d.*, s.ho_ten FROM discipline_scores d
@@ -236,6 +241,11 @@ export function registerIpcHandlers(): void {
         );
       }
     }
+    return { success: true };
+  });
+
+  ipcMain.handle(IPC.SCORES_DISCIPLINE_DELETE, async (_event, id: number) => {
+    await query('DELETE FROM discipline_scores WHERE id = ?', [id]);
     return { success: true };
   });
 
@@ -365,6 +375,11 @@ export function registerIpcHandlers(): void {
         data.diem_nam_1, data.diem_nam_2, data.diem_nam_3, data.diem_nam_4, avg, xep_loai,
       ]
     );
+    return { success: true };
+  });
+
+  ipcMain.handle(IPC.AWARDS_DELETE, async (_event, id: number) => {
+    await query('DELETE FROM awards WHERE id = ?', [id]);
     return { success: true };
   });
 }
