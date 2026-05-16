@@ -3,3 +3,9 @@ dist/
 release/
 .db-config.json
 ~$*
+
+# Local tooling / non-source artifacts
+.claude/
+*.exe
+*.zip
+tunnel.log
