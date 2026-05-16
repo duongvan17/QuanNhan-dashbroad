@@ -15,6 +15,7 @@ const DisciplinePage: React.FC = () => {
   const [students, setStudents] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
   const [filters, setFilters] = useState<any>({ nam_hoc: 1, thang: 1 });
   const [form] = Form.useForm();
 
@@ -54,12 +55,14 @@ const DisciplinePage: React.FC = () => {
     try {
       const values = await form.validateFields();
       await saveDisciplineScores([{
+        ...(editingId ? { id: editingId } : {}),
         student_id: values.student_id,
         nam_hoc: filters.nam_hoc, thang: filters.thang,
         tuan_1: values.tuan_1 ?? null, tuan_2: values.tuan_2 ?? null,
         tuan_3: values.tuan_3 ?? null, tuan_4: values.tuan_4 ?? null,
       }]);
-      message.success('Đã lưu'); setModalOpen(false); form.resetFields(); loadScores();
+      message.success(editingId ? 'Đã cập nhật' : 'Đã lưu');
+      setModalOpen(false); setEditingId(null); form.resetFields(); loadScores();
     } catch (err: any) { if (!err.errorFields) message.error('Lỗi: ' + err.message); }
   };
 
@@ -102,6 +105,7 @@ const DisciplinePage: React.FC = () => {
       render: (_: any, record: any) => (
         <Space size={4}>
           <Button size="small" icon={<EditOutlined />} type="text" onClick={() => {
+            setEditingId(record.id);
             form.setFieldsValue({ student_id: record.student_id, tuan_1: record.tuan_1, tuan_2: record.tuan_2, tuan_3: record.tuan_3, tuan_4: record.tuan_4 });
             setModalOpen(true);
           }} />
@@ -132,7 +136,7 @@ const DisciplinePage: React.FC = () => {
             ))}
           </Select>
           <Button icon={<CopyOutlined />} onClick={handleCopy}>Copy bảng</Button>
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => { form.resetFields(); setModalOpen(true); }}>Thêm điểm</Button>
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => { setEditingId(null); form.resetFields(); setModalOpen(true); }}>Thêm điểm</Button>
         </Space>
       </Space>
 
@@ -155,11 +159,12 @@ const DisciplinePage: React.FC = () => {
         </Card>
       )}
 
-      <Modal title="Thêm điểm rèn luyện" open={modalOpen} onOk={handleAdd} onCancel={() => setModalOpen(false)}
+      <Modal title={editingId ? 'Sửa điểm rèn luyện' : 'Thêm điểm rèn luyện'} open={modalOpen} onOk={handleAdd}
+        onCancel={() => { setModalOpen(false); setEditingId(null); }}
         okText="Lưu" cancelText="Hủy" width={500}>
         <Form form={form} layout="vertical">
           <Form.Item name="student_id" label="Học viên" rules={[{ required: true }]}>
-            <Select placeholder="Chọn" showSearch optionFilterProp="label"
+            <Select placeholder="Chọn" showSearch optionFilterProp="label" disabled={editingId != null}
               options={students.map(s => ({ value: s.id, label: s.ho_ten }))} />
           </Form.Item>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
