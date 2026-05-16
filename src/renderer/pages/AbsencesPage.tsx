@@ -96,6 +96,8 @@ const AbsencesPage: React.FC = () => {
   };
 
   const grouped = groupByStudent();
+  const soHvVang = grouped.length;
+  const hvKhongVang = Math.max(0, students.length - soHvVang);
 
   const studentColumns = [
     { title: 'STT', dataIndex: 'stt', width: 60 },
@@ -148,10 +150,10 @@ const AbsencesPage: React.FC = () => {
           <Card size="small"><Statistic title="Tổng lượt vắng" value={absences.length} valueStyle={{ color: '#faad14', fontSize: 28 }} /></Card>
         </Col>
         <Col xs={8} sm={6} md={4}>
-          <Card size="small"><Statistic title="Số HV vắng" value={grouped.filter(g => g.tong_cong > 0).length} valueStyle={{ color: '#ff4d4f', fontSize: 28 }} /></Card>
+          <Card size="small"><Statistic title="Số HV vắng" value={soHvVang} valueStyle={{ color: '#ff4d4f', fontSize: 28 }} /></Card>
         </Col>
         <Col xs={8} sm={6} md={4}>
-          <Card size="small"><Statistic title="HV không vắng" value={grouped.filter(g => g.tong_cong === 0).length} valueStyle={{ color: '#52c41a', fontSize: 28 }} /></Card>
+          <Card size="small"><Statistic title="HV không vắng" value={hvKhongVang} valueStyle={{ color: '#52c41a', fontSize: 28 }} /></Card>
         </Col>
       </Row>
 
