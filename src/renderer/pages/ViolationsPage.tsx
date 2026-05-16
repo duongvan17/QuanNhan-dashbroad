@@ -169,7 +169,7 @@ const ViolationsPage: React.FC = () => {
         </Col>
       </Row>
 
-      <Card bodyStyle={{ padding: 0 }}>
+      <Card styles={{ body: { padding: 0 } }}>
         <Table columns={columns} dataSource={grouped} rowKey="key" loading={loading} size="middle"
           bordered pagination={false}
           expandable={{ expandedRowRender, rowExpandable: (r) => r.tong > 0 }} />

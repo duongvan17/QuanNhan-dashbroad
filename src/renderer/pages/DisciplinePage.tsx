@@ -140,7 +140,7 @@ const DisciplinePage: React.FC = () => {
         </Space>
       </Space>
 
-      <Card bodyStyle={{ padding: 0 }}>
+      <Card styles={{ body: { padding: 0 } }}>
         <Table columns={columns} dataSource={scores} rowKey="id" loading={loading} size="middle"
           scroll={{ x: 900 }} pagination={false} bordered />
       </Card>

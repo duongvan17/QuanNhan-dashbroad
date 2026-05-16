@@ -293,7 +293,7 @@ const AcademicPage: React.FC = () => {
         </Space>
       </Space>
 
-      <Card bodyStyle={{ padding: 0 }}>
+      <Card styles={{ body: { padding: 0 } }}>
         <Table
           columns={columns}
           dataSource={rows}

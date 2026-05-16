@@ -157,7 +157,7 @@ const AbsencesPage: React.FC = () => {
         </Col>
       </Row>
 
-      <Card bodyStyle={{ padding: 0 }}>
+      <Card styles={{ body: { padding: 0 } }}>
         <Table
           columns={studentColumns}
           dataSource={grouped}

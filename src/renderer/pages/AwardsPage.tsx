@@ -149,7 +149,7 @@ const AwardsPage: React.FC = () => {
         </Space>
       </Card>
 
-      <Card bodyStyle={{ padding: 0 }}>
+      <Card styles={{ body: { padding: 0 } }}>
         <Table columns={columns} dataSource={awards} rowKey="id" loading={loading} size="middle"
           scroll={{ x: 900 }} pagination={false} bordered />
       </Card>
