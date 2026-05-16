@@ -71,10 +71,10 @@ const AbsencesPage: React.FC = () => {
 
   // Group by student
   const groupByStudent = () => {
-    const map = new Map<string, { ho_ten: string; student_id: number; records: any[] }>();
+    const map = new Map<number, { ho_ten: string; student_id: number; records: any[] }>();
     absences.forEach((a) => {
-      if (!map.has(a.ho_ten)) map.set(a.ho_ten, { ho_ten: a.ho_ten, student_id: a.student_id, records: [] });
-      map.get(a.ho_ten)!.records.push(a);
+      if (!map.has(a.student_id)) map.set(a.student_id, { ho_ten: a.ho_ten, student_id: a.student_id, records: [] });
+      map.get(a.student_id)!.records.push(a);
     });
     return Array.from(map.values()).map((g, i) => ({
       key: g.student_id,

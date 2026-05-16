@@ -75,10 +75,10 @@ const ViolationsPage: React.FC = () => {
 
   // Group by student
   const groupByStudent = () => {
-    const map = new Map<string, { ho_ten: string; student_id: number; records: any[]; khien_trach: number; canh_cao: number; ky_luat: number }>();
+    const map = new Map<number, { ho_ten: string; student_id: number; records: any[]; khien_trach: number; canh_cao: number; ky_luat: number }>();
     violations.forEach((v) => {
-      if (!map.has(v.ho_ten)) map.set(v.ho_ten, { ho_ten: v.ho_ten, student_id: v.student_id, records: [], khien_trach: 0, canh_cao: 0, ky_luat: 0 });
-      const g = map.get(v.ho_ten)!;
+      if (!map.has(v.student_id)) map.set(v.student_id, { ho_ten: v.ho_ten, student_id: v.student_id, records: [], khien_trach: 0, canh_cao: 0, ky_luat: 0 });
+      const g = map.get(v.student_id)!;
       g.records.push(v);
       if (v.loai === 'khien_trach') g.khien_trach++;
       else if (v.loai === 'canh_cao') g.canh_cao++;
