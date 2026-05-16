@@ -8,6 +8,7 @@ import {
   EyeOutlined, UserOutlined, CopyOutlined, UploadOutlined,
 } from '@ant-design/icons';
 import { getStudents, createStudent, updateStudent, deleteStudent, getUnits } from '../services/api';
+import { useAuth } from '../auth/AuthContext';
 import type { Unit } from '../../shared/types';
 import dayjs from 'dayjs';
 
@@ -15,6 +16,7 @@ const { Title } = Typography;
 
 const StudentsPage: React.FC = () => {
   const { message } = App.useApp();
+  const { isAdmin } = useAuth();
   const [students, setStudents] = useState<any[]>([]);
   const [units, setUnits] = useState<Unit[]>([]);
   const [total, setTotal] = useState(0);
@@ -210,12 +212,16 @@ const StudentsPage: React.FC = () => {
             <Button size="small" icon={<EyeOutlined />}
               onClick={() => { setSelectedStudent(record); setDetailOpen(true); }} />
           </Tooltip>
-          <Tooltip title="Sửa">
-            <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(record)} />
-          </Tooltip>
-          <Popconfirm title="Xóa học viên này?" onConfirm={() => handleDelete(record.id)}>
-            <Button size="small" danger icon={<DeleteOutlined />} />
-          </Popconfirm>
+          {isAdmin && (
+            <Tooltip title="Sửa">
+              <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(record)} />
+            </Tooltip>
+          )}
+          {isAdmin && (
+            <Popconfirm title="Xóa học viên này?" onConfirm={() => handleDelete(record.id)}>
+              <Button size="small" danger icon={<DeleteOutlined />} />
+            </Popconfirm>
+          )}
         </Space>
       ),
     },
@@ -247,9 +253,11 @@ const StudentsPage: React.FC = () => {
           <Button icon={<CopyOutlined />} onClick={handleCopyTable}>
             Copy bảng
           </Button>
-          <Button type="primary" icon={<PlusOutlined />} onClick={openAdd}>
-            Thêm học viên
-          </Button>
+          {isAdmin && (
+            <Button type="primary" icon={<PlusOutlined />} onClick={openAdd}>
+              Thêm học viên
+            </Button>
+          )}
         </Space>
       </Space>
 

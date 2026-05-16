@@ -5,12 +5,14 @@ import {
 } from 'antd';
 import { PlusOutlined, TrophyOutlined, CopyOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import { getAwards, saveAward, deleteAward, getStudents, getUnits } from '../services/api';
+import { useAuth } from '../auth/AuthContext';
 import type { Unit } from '../../shared/types';
 
 const { Title } = Typography;
 
 const AwardsPage: React.FC = () => {
   const { message } = App.useApp();
+  const { isAdmin } = useAuth();
   const [awards, setAwards] = useState<any[]>([]);
   const [units, setUnits] = useState<Unit[]>([]);
   const [students, setStudents] = useState<any[]>([]);
@@ -96,7 +98,8 @@ const AwardsPage: React.FC = () => {
     { title: 'STT', width: 60, render: (_: any, __: any, i: number) => i + 1 },
     {
       title: 'Họ và tên', dataIndex: 'ho_ten', width: 200,
-      render: (text: string, record: any) => <a onClick={() => openEdit(record)}>{text}</a>,
+      render: (text: string, record: any) =>
+        isAdmin ? <a onClick={() => openEdit(record)}>{text}</a> : <span>{text}</span>,
     },
     { title: 'Năm nhất', dataIndex: 'diem_nam_1', width: 110, align: 'center' as const, render: renderDiem },
     { title: 'Năm hai', dataIndex: 'diem_nam_2', width: 110, align: 'center' as const, render: renderDiem },
@@ -109,7 +112,7 @@ const AwardsPage: React.FC = () => {
         : '-',
     },
     { title: 'Xếp loại', dataIndex: 'xep_loai', width: 120, align: 'center' as const, render: getXepLoaiTag },
-    {
+    ...(isAdmin ? [{
       title: '', width: 90, align: 'center' as const,
       render: (_: any, record: any) => (
         <Space size={4}>
@@ -122,7 +125,7 @@ const AwardsPage: React.FC = () => {
           </Popconfirm>
         </Space>
       ),
-    },
+    }] : []),
   ];
 
   return (
@@ -133,7 +136,9 @@ const AwardsPage: React.FC = () => {
           <Cascader options={buildCascaderOptions()} onChange={handleFilterUnit}
             placeholder="Lọc theo đơn vị" changeOnSelect allowClear style={{ width: 300 }} />
           <Button icon={<CopyOutlined />} onClick={handleCopy}>Copy bảng</Button>
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => { form.resetFields(); setModalOpen(true); }}>Thêm / Sửa</Button>
+          {isAdmin && (
+            <Button type="primary" icon={<PlusOutlined />} onClick={() => { form.resetFields(); setModalOpen(true); }}>Thêm / Sửa</Button>
+          )}
         </Space>
       </Space>
 

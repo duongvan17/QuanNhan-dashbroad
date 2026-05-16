@@ -54,6 +54,10 @@ export async function getPool(): Promise<mysql.Pool> {
   return pool;
 }
 
+export function isConnected(): boolean {
+  return pool !== null;
+}
+
 export async function closeDb(): Promise<void> {
   if (pool) {
     await pool.end();

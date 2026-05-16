@@ -2,7 +2,12 @@ import express from 'express';
 import cors from 'cors';
 import fs from 'fs';
 import path from 'path';
-import { connectDb, testConnection, initTables, query, closeDb } from '../main/database';
+import { connectDb, testConnection, initTables, query, closeDb, isConnected } from '../main/database';
+import {
+  ensureUsersTable, hasAnyUser, login, register, getUserById, changePassword,
+  listUsers, adminCreateUser, adminDeleteUser, adminSetRole, adminResetPassword,
+  verifyToken, type TokenPayload,
+} from '../main/auth';
 import type { DbConfig } from '../shared/types';
 
 const app = express();
@@ -10,6 +15,35 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 
 const PORT = 3456;
+
+// ============ Auth middleware ============
+function currentUser(req: express.Request): TokenPayload | null {
+  const h = req.headers.authorization || '';
+  const token = h.startsWith('Bearer ') ? h.slice(7) : '';
+  return verifyToken(token);
+}
+
+async function requireAuth(req: express.Request, res: express.Response, next: express.NextFunction) {
+  if (!currentUser(req)) return res.status(401).json({ error: 'Chưa đăng nhập' });
+  next();
+}
+
+function requireAdmin(req: express.Request, res: express.Response, next: express.NextFunction) {
+  const u = currentUser(req);
+  if (!u) return res.status(401).json({ error: 'Chưa đăng nhập' });
+  if (u.role !== 'admin') return res.status(403).json({ error: 'Chỉ admin mới được thực hiện thao tác này' });
+  next();
+}
+
+// Cấu hình DB: cho phép khi chưa có user nào (bootstrap) hoặc là admin.
+async function requireConfigAccess(req: express.Request, res: express.Response, next: express.NextFunction) {
+  const bootstrap = !(await hasAnyUser());
+  if (bootstrap) return next();
+  const u = currentUser(req);
+  if (!u) return res.status(401).json({ error: 'Chưa đăng nhập' });
+  if (u.role !== 'admin') return res.status(403).json({ error: 'Chỉ admin mới được cấu hình' });
+  next();
+}
 
 // ============ Config (lưu file) ============
 const CONFIG_FILE = path.join(process.cwd(), '.db-config.json');
@@ -29,17 +63,17 @@ function saveConfig(config: DbConfig): void {
 
 let currentConfig: DbConfig = loadConfig();
 
-app.get('/api/config', (_req, res) => {
+app.get('/api/config', requireConfigAccess, (_req, res) => {
   res.json(currentConfig);
 });
 
-app.post('/api/config', (req, res) => {
+app.post('/api/config', requireConfigAccess, (req, res) => {
   currentConfig = req.body;
   saveConfig(currentConfig);
   res.json({ success: true });
 });
 
-app.post('/api/test-connection', async (req, res) => {
+app.post('/api/test-connection', requireConfigAccess, async (req, res) => {
   try {
     const result = await testConnection(req.body);
     res.json(result);
@@ -48,16 +82,107 @@ app.post('/api/test-connection', async (req, res) => {
   }
 });
 
-app.post('/api/init-db', async (req, res) => {
+app.post('/api/init-db', requireConfigAccess, async (req, res) => {
   try {
     currentConfig = req.body;
     saveConfig(currentConfig);
     await connectDb(currentConfig);
     await initTables();
+    await ensureUsersTable();
     res.json({ success: true, message: 'Kết nối và khởi tạo database thành công!' });
   } catch (err: any) {
     res.json({ success: false, message: `Lỗi: ${err.message}` });
   }
+});
+
+// ============ Auth ============
+app.get('/api/auth/status', (_req, res) => {
+  res.json({ dbConnected: isConnected() });
+});
+
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    res.json(await login(req.body.username, req.body.password));
+  } catch (err: any) {
+    res.status(401).json({ error: err.message });
+  }
+});
+
+app.post('/api/auth/register', async (req, res) => {
+  try {
+    res.json(await register(req.body.username, req.body.password));
+  } catch (err: any) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.get('/api/auth/me', async (req, res) => {
+  const payload = currentUser(req);
+  if (!payload) return res.json({ user: null });
+  try {
+    res.json({ user: await getUserById(payload.id) });
+  } catch {
+    res.json({ user: null });
+  }
+});
+
+app.post('/api/auth/change-password', requireAuth, async (req, res) => {
+  try {
+    await changePassword(currentUser(req)!.id, req.body.oldPassword, req.body.newPassword);
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// ============ Users (admin) ============
+app.get('/api/users', requireAdmin, async (_req, res) => {
+  try {
+    res.json(await listUsers());
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/users', requireAdmin, async (req, res) => {
+  try {
+    res.json(await adminCreateUser(req.body.username, req.body.password, req.body.role));
+  } catch (err: any) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.delete('/api/users/:id', requireAdmin, async (req, res) => {
+  try {
+    await adminDeleteUser(Number(req.params.id), currentUser(req)!.id);
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.put('/api/users/:id/role', requireAdmin, async (req, res) => {
+  try {
+    await adminSetRole(Number(req.params.id), req.body.role, currentUser(req)!.id);
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.put('/api/users/:id/password', requireAdmin, async (req, res) => {
+  try {
+    await adminResetPassword(Number(req.params.id), req.body.newPassword);
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// ============ Guard: GET cần đăng nhập, ghi cần admin ============
+app.use('/api', (req, res, next) => {
+  if (req.method === 'GET' || req.method === 'HEAD') return requireAuth(req, res, next);
+  return requireAdmin(req, res, next);
 });
 
 // ============ Units ============
@@ -546,6 +671,7 @@ app.listen(PORT, async () => {
     try {
       await connectDb(currentConfig);
       await initTables();
+      await ensureUsersTable();
       console.log(`  Auto-connected to ${currentConfig.host}:${currentConfig.port}/${currentConfig.database}\n`);
     } catch (err: any) {
       console.log(`  Auto-connect failed: ${err.message}\n  → Vào Cài đặt để cấu hình lại\n`);

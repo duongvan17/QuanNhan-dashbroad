@@ -5,12 +5,14 @@ import {
 } from 'antd';
 import { PlusOutlined, BookOutlined, CopyOutlined, DeleteOutlined } from '@ant-design/icons';
 import { getAcademicScores, saveAcademicScores, deleteAcademicScore, getStudents, getUnits } from '../services/api';
+import { useAuth } from '../auth/AuthContext';
 import type { Unit } from '../../shared/types';
 
 const { Title } = Typography;
 
 const AcademicPage: React.FC = () => {
   const { message } = App.useApp();
+  const { isAdmin } = useAuth();
   const [scores, setScores] = useState<any[]>([]);
   const [units, setUnits] = useState<Unit[]>([]);
   const [students, setStudents] = useState<any[]>([]);
@@ -237,10 +239,16 @@ const AcademicPage: React.FC = () => {
       width: 100,
       align: 'center' as const,
       render: (v: number | null, record: any) => (
-        <a onClick={() => handleEditScore(record.student_id, record.ho_ten, sub, getScoreObj(record.student_id, sub))}
-          style={{ color: v == null ? '#ccc' : v >= 8 ? '#52c41a' : v >= 5 ? '#1677ff' : '#ff4d4f', fontWeight: 600, fontSize: 15 }}>
-          {v != null ? v : '-'}
-        </a>
+        isAdmin ? (
+          <a onClick={() => handleEditScore(record.student_id, record.ho_ten, sub, getScoreObj(record.student_id, sub))}
+            style={{ color: v == null ? '#ccc' : v >= 8 ? '#52c41a' : v >= 5 ? '#1677ff' : '#ff4d4f', fontWeight: 600, fontSize: 15 }}>
+            {v != null ? v : '-'}
+          </a>
+        ) : (
+          <span style={{ color: v == null ? '#ccc' : v >= 8 ? '#52c41a' : v >= 5 ? '#1677ff' : '#ff4d4f', fontWeight: 600, fontSize: 15 }}>
+            {v != null ? v : '-'}
+          </span>
+        )
       ),
     })),
     {
@@ -253,14 +261,14 @@ const AcademicPage: React.FC = () => {
       title: 'Xếp loại', dataIndex: 'xep_loai', width: 100, align: 'center' as const, fixed: 'right' as const,
       render: (v: string) => v ? getXepLoaiTag(v) : '-',
     },
-    {
+    ...(isAdmin ? [{
       title: '', width: 50, fixed: 'right' as const, align: 'center' as const,
       render: (_: any, record: any) => (
         <Popconfirm title="Xóa tất cả điểm của học viên này?" onConfirm={() => handleDeleteAllScoresForStudent(record.student_id)}>
           <Button size="small" danger icon={<DeleteOutlined />} type="text" />
         </Popconfirm>
       ),
-    },
+    }] : []),
   ];
 
   return (
@@ -283,9 +291,11 @@ const AcademicPage: React.FC = () => {
             <Select.Option value={2}>Học kỳ II</Select.Option>
           </Select>
           <Button icon={<CopyOutlined />} onClick={handleCopy}>Copy bảng</Button>
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => { form.resetFields(); setModalOpen(true); }}>
-            Thêm điểm
-          </Button>
+          {isAdmin && (
+            <Button type="primary" icon={<PlusOutlined />} onClick={() => { form.resetFields(); setModalOpen(true); }}>
+              Thêm điểm
+            </Button>
+          )}
         </Space>
       </Space>
 

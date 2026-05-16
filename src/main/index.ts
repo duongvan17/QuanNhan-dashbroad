@@ -3,6 +3,7 @@ import path from 'path';
 import { registerIpcHandlers } from './ipc';
 import { getDbConfig } from './config';
 import { connectDb, initTables, closeDb } from './database';
+import { ensureUsersTable } from './auth';
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -56,6 +57,7 @@ app.whenReady().then(async () => {
     try {
       await connectDb(config);
       await initTables();
+      await ensureUsersTable();
       console.log('Auto-connected to database');
     } catch (err) {
       console.log('Auto-connect failed, user will need to configure manually');

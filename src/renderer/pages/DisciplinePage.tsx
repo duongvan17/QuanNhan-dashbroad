@@ -5,12 +5,14 @@ import {
 } from 'antd';
 import { PlusOutlined, StarOutlined, CopyOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import { getDisciplineScores, saveDisciplineScores, deleteDisciplineScore, getStudents, getUnits } from '../services/api';
+import { useAuth } from '../auth/AuthContext';
 import type { Unit } from '../../shared/types';
 
 const { Title } = Typography;
 
 const DisciplinePage: React.FC = () => {
   const { message } = App.useApp();
+  const { isAdmin } = useAuth();
   const [scores, setScores] = useState<any[]>([]);
   const [units, setUnits] = useState<Unit[]>([]);
   const [students, setStudents] = useState<any[]>([]);
@@ -101,7 +103,7 @@ const DisciplinePage: React.FC = () => {
         : '-',
     },
     { title: 'Xếp loại', dataIndex: 'xep_loai', width: 120, align: 'center' as const, render: getXepLoaiTag },
-    {
+    ...(isAdmin ? [{
       title: '', width: 90, align: 'center' as const,
       render: (_: any, record: any) => (
         <Space size={4}>
@@ -118,7 +120,7 @@ const DisciplinePage: React.FC = () => {
           </Popconfirm>
         </Space>
       ),
-    },
+    }] : []),
   ];
 
   return (
@@ -137,7 +139,9 @@ const DisciplinePage: React.FC = () => {
             ))}
           </Select>
           <Button icon={<CopyOutlined />} onClick={handleCopy}>Copy bảng</Button>
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => { setEditingId(null); form.resetFields(); setModalOpen(true); }}>Thêm điểm</Button>
+          {isAdmin && (
+            <Button type="primary" icon={<PlusOutlined />} onClick={() => { setEditingId(null); form.resetFields(); setModalOpen(true); }}>Thêm điểm</Button>
+          )}
         </Space>
       </Space>
 

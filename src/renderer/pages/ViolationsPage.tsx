@@ -5,6 +5,7 @@ import {
 } from 'antd';
 import { PlusOutlined, DeleteOutlined, WarningOutlined, CopyOutlined } from '@ant-design/icons';
 import { getViolations, createViolation, deleteViolation, getStudents, getUnits } from '../services/api';
+import { useAuth } from '../auth/AuthContext';
 import type { Unit } from '../../shared/types';
 import dayjs from 'dayjs';
 
@@ -18,6 +19,7 @@ const violationLabels: Record<string, { text: string; color: string }> = {
 
 const ViolationsPage: React.FC = () => {
   const { message } = App.useApp();
+  const { isAdmin } = useAuth();
   const [violations, setViolations] = useState<any[]>([]);
   const [units, setUnits] = useState<Unit[]>([]);
   const [students, setStudents] = useState<any[]>([]);
@@ -130,14 +132,14 @@ const ViolationsPage: React.FC = () => {
         },
         { title: 'Ngày', dataIndex: 'ngay', width: 130, render: (v: string) => dayjs(v).format('DD/MM/YYYY') },
         { title: 'Lý do', dataIndex: 'ly_do', render: (v: string) => v || '-' },
-        {
+        ...(isAdmin ? [{
           title: '', width: 80,
           render: (_: any, r: any) => (
             <Popconfirm title="Xóa?" onConfirm={() => handleDelete(r.id)}>
               <Button size="small" danger icon={<DeleteOutlined />} />
             </Popconfirm>
           ),
-        },
+        }] : []),
       ]}
       dataSource={record.records}
       rowKey="id"
@@ -154,7 +156,9 @@ const ViolationsPage: React.FC = () => {
           <Cascader options={buildCascaderOptions()} onChange={handleFilterUnit}
             placeholder="Lọc theo đơn vị" changeOnSelect allowClear style={{ width: 300 }} />
           <Button icon={<CopyOutlined />} onClick={handleCopy}>Copy bảng</Button>
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => { form.resetFields(); setModalOpen(true); }}>Thêm vi phạm</Button>
+          {isAdmin && (
+            <Button type="primary" icon={<PlusOutlined />} onClick={() => { form.resetFields(); setModalOpen(true); }}>Thêm vi phạm</Button>
+          )}
         </Space>
       </Space>
 

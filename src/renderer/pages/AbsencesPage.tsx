@@ -5,6 +5,7 @@ import {
 } from 'antd';
 import { PlusOutlined, DeleteOutlined, CalendarOutlined, CopyOutlined } from '@ant-design/icons';
 import { getAbsences, createAbsence, deleteAbsence, getStudents, getUnits } from '../services/api';
+import { useAuth } from '../auth/AuthContext';
 import type { Unit } from '../../shared/types';
 import dayjs from 'dayjs';
 
@@ -12,6 +13,7 @@ const { Title } = Typography;
 
 const AbsencesPage: React.FC = () => {
   const { message } = App.useApp();
+  const { isAdmin } = useAuth();
   const [absences, setAbsences] = useState<any[]>([]);
   const [units, setUnits] = useState<Unit[]>([]);
   const [students, setStudents] = useState<any[]>([]);
@@ -117,14 +119,14 @@ const AbsencesPage: React.FC = () => {
       columns={[
         { title: 'Ngày vắng', dataIndex: 'ngay_vang', width: 150, render: (v: string) => <Tag color="orange">{dayjs(v).format('DD/MM/YYYY')}</Tag> },
         { title: 'Ghi chú', dataIndex: 'ghi_chu', render: (v: string) => v || '-' },
-        {
+        ...(isAdmin ? [{
           title: '', width: 80,
           render: (_: any, r: any) => (
             <Popconfirm title="Xóa?" onConfirm={() => handleDelete(r.id)}>
               <Button size="small" danger icon={<DeleteOutlined />} />
             </Popconfirm>
           ),
-        },
+        }] : []),
       ]}
       dataSource={record.records}
       rowKey="id"
@@ -141,7 +143,9 @@ const AbsencesPage: React.FC = () => {
           <Cascader options={buildCascaderOptions()} onChange={handleFilterUnit}
             placeholder="Lọc theo đơn vị" changeOnSelect allowClear style={{ width: 300 }} />
           <Button icon={<CopyOutlined />} onClick={handleCopy}>Copy bảng</Button>
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => { form.resetFields(); setModalOpen(true); }}>Thêm công vắng</Button>
+          {isAdmin && (
+            <Button type="primary" icon={<PlusOutlined />} onClick={() => { form.resetFields(); setModalOpen(true); }}>Thêm công vắng</Button>
+          )}
         </Space>
       </Space>
 

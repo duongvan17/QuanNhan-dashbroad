@@ -1,29 +1,128 @@
 import { ipcMain } from 'electron';
 import { IPC } from '../shared/types';
-import type { DbConfig } from '../shared/types';
+import type { DbConfig, UserRole } from '../shared/types';
 import { getDbConfig, setDbConfig } from './config';
-import { connectDb, testConnection, initTables, query } from './database';
+import { connectDb, testConnection, initTables, query, isConnected } from './database';
+import {
+  ensureUsersTable, hasAnyUser, login, register, getUserById, changePassword,
+  listUsers, adminCreateUser, adminDeleteUser, adminSetRole, adminResetPassword,
+  verifyToken, type TokenPayload,
+} from './auth';
+
+// Phiên đăng nhập lưu trong tiến trình main (1 cửa sổ / 1 tiến trình).
+let session: TokenPayload | null = null;
+
+type Mode = 'open' | 'auth' | 'admin' | 'config';
+
+function handle(
+  channel: string,
+  mode: Mode,
+  fn: (event: Electron.IpcMainInvokeEvent, ...args: any[]) => any,
+): void {
+  ipcMain.handle(channel, async (event, ...args) => {
+    if (mode === 'auth' && !session) throw new Error('Chưa đăng nhập');
+    if (mode === 'admin' && session?.role !== 'admin') throw new Error('Chỉ admin mới được thực hiện thao tác này');
+    if (mode === 'config') {
+      const bootstrap = !(await hasAnyUser());
+      if (!bootstrap && session?.role !== 'admin') throw new Error('Chỉ admin mới được cấu hình');
+    }
+    return fn(event, ...args);
+  });
+}
 
 export function registerIpcHandlers(): void {
+  // ============ Auth ============
+  handle(IPC.AUTH_STATUS, 'open', () => {
+    return { dbConnected: isConnected() };
+  });
+
+  handle(IPC.AUTH_LOGIN, 'open', async (_event, data: { username: string; password: string }) => {
+    const result = await login(data.username, data.password);
+    session = verifyToken(result.token);
+    return result;
+  });
+
+  handle(IPC.AUTH_REGISTER, 'open', async (_event, data: { username: string; password: string }) => {
+    const result = await register(data.username, data.password);
+    session = verifyToken(result.token);
+    return result;
+  });
+
+  handle(IPC.AUTH_ME, 'open', async (_event, token: string) => {
+    const payload = verifyToken(token);
+    if (!payload) {
+      session = null;
+      return { user: null };
+    }
+    try {
+      const user = await getUserById(payload.id);
+      if (!user) {
+        session = null;
+        return { user: null };
+      }
+      session = { id: user.id, username: user.username, role: user.role, exp: payload.exp };
+      return { user };
+    } catch {
+      // DB chưa kết nối — coi như chưa đăng nhập
+      session = null;
+      return { user: null };
+    }
+  });
+
+  handle(IPC.AUTH_LOGOUT, 'open', () => {
+    session = null;
+    return { success: true };
+  });
+
+  handle(IPC.AUTH_CHANGE_PASSWORD, 'auth', async (_event, data: { oldPassword: string; newPassword: string }) => {
+    await changePassword(session!.id, data.oldPassword, data.newPassword);
+    return { success: true };
+  });
+
+  // ============ Users (admin) ============
+  handle(IPC.USERS_LIST, 'admin', async () => {
+    return listUsers();
+  });
+
+  handle(IPC.USERS_CREATE, 'admin', async (_event, data: { username: string; password: string; role: UserRole }) => {
+    return adminCreateUser(data.username, data.password, data.role);
+  });
+
+  handle(IPC.USERS_DELETE, 'admin', async (_event, id: number) => {
+    await adminDeleteUser(id, session!.id);
+    return { success: true };
+  });
+
+  handle(IPC.USERS_SET_ROLE, 'admin', async (_event, data: { id: number; role: UserRole }) => {
+    await adminSetRole(data.id, data.role, session!.id);
+    return { success: true };
+  });
+
+  handle(IPC.USERS_RESET_PASSWORD, 'admin', async (_event, data: { id: number; newPassword: string }) => {
+    await adminResetPassword(data.id, data.newPassword);
+    return { success: true };
+  });
+
   // ============ Config ============
-  ipcMain.handle(IPC.GET_CONFIG, () => {
+  handle(IPC.GET_CONFIG, 'config', () => {
     return getDbConfig();
   });
 
-  ipcMain.handle(IPC.SET_CONFIG, async (_event, config: DbConfig) => {
+  handle(IPC.SET_CONFIG, 'config', async (_event, config: DbConfig) => {
     setDbConfig(config);
     return { success: true };
   });
 
-  ipcMain.handle(IPC.TEST_CONNECTION, async (_event, config: DbConfig) => {
+  handle(IPC.TEST_CONNECTION, 'config', async (_event, config: DbConfig) => {
     return testConnection(config);
   });
 
-  ipcMain.handle(IPC.DB_INIT, async (_event, config: DbConfig) => {
+  handle(IPC.DB_INIT, 'config', async (_event, config: DbConfig) => {
     try {
       setDbConfig(config);
       await connectDb(config);
       await initTables();
+      await ensureUsersTable();
       return { success: true, message: 'Kết nối và khởi tạo database thành công!' };
     } catch (err: any) {
       return { success: false, message: `Lỗi: ${err.message}` };
@@ -31,11 +130,11 @@ export function registerIpcHandlers(): void {
   });
 
   // ============ Units ============
-  ipcMain.handle(IPC.UNITS_GET_ALL, async () => {
+  handle(IPC.UNITS_GET_ALL, 'auth', async () => {
     return query('SELECT * FROM units ORDER BY type, name');
   });
 
-  ipcMain.handle(IPC.UNITS_CREATE, async (_event, data: { name: string; type: string; parent_id: number | null }) => {
+  handle(IPC.UNITS_CREATE, 'admin', async (_event, data: { name: string; type: string; parent_id: number | null }) => {
     const result = await query<any>(
       'INSERT INTO units (name, type, parent_id) VALUES (?, ?, ?)',
       [data.name, data.type, data.parent_id]
@@ -43,18 +142,18 @@ export function registerIpcHandlers(): void {
     return { id: result.insertId };
   });
 
-  ipcMain.handle(IPC.UNITS_UPDATE, async (_event, data: { id: number; name: string }) => {
+  handle(IPC.UNITS_UPDATE, 'admin', async (_event, data: { id: number; name: string }) => {
     await query('UPDATE units SET name = ? WHERE id = ?', [data.name, data.id]);
     return { success: true };
   });
 
-  ipcMain.handle(IPC.UNITS_DELETE, async (_event, id: number) => {
+  handle(IPC.UNITS_DELETE, 'admin', async (_event, id: number) => {
     await query('DELETE FROM units WHERE id = ?', [id]);
     return { success: true };
   });
 
   // ============ Students ============
-  ipcMain.handle(IPC.STUDENTS_GET, async (_event, filters: { unit_id?: number; search?: string; page?: number; pageSize?: number }) => {
+  handle(IPC.STUDENTS_GET, 'auth', async (_event, filters: { unit_id?: number; search?: string; page?: number; pageSize?: number }) => {
     let sql = 'SELECT s.*, u.name as unit_name FROM students s LEFT JOIN units u ON s.unit_id = u.id WHERE 1=1';
     const params: any[] = [];
 
@@ -90,7 +189,7 @@ export function registerIpcHandlers(): void {
     return { data: rows, total, page, pageSize };
   });
 
-  ipcMain.handle(IPC.STUDENTS_CREATE, async (_event, data: any) => {
+  handle(IPC.STUDENTS_CREATE, 'admin', async (_event, data: any) => {
     const fields = [
       'unit_id', 'ho_ten', 'hinh_anh', 'ngay_sinh', 'cccd', 'cap_bac', 'chuc_vu',
       'que_quan', 'dia_chi_thuong_tru',
@@ -106,7 +205,7 @@ export function registerIpcHandlers(): void {
     return { id: result.insertId };
   });
 
-  ipcMain.handle(IPC.STUDENTS_UPDATE, async (_event, data: any) => {
+  handle(IPC.STUDENTS_UPDATE, 'admin', async (_event, data: any) => {
     const fields = [
       'unit_id', 'ho_ten', 'hinh_anh', 'ngay_sinh', 'cccd', 'cap_bac', 'chuc_vu',
       'que_quan', 'dia_chi_thuong_tru',
@@ -120,13 +219,13 @@ export function registerIpcHandlers(): void {
     return { success: true };
   });
 
-  ipcMain.handle(IPC.STUDENTS_DELETE, async (_event, id: number) => {
+  handle(IPC.STUDENTS_DELETE, 'admin', async (_event, id: number) => {
     await query('DELETE FROM students WHERE id = ?', [id]);
     return { success: true };
   });
 
   // ============ Academic Scores ============
-  ipcMain.handle(IPC.SCORES_ACADEMIC_GET, async (_event, filters: { student_id?: number; unit_id?: number; nam_hoc?: number; hoc_ky?: number }) => {
+  handle(IPC.SCORES_ACADEMIC_GET, 'auth', async (_event, filters: { student_id?: number; unit_id?: number; nam_hoc?: number; hoc_ky?: number }) => {
     let sql = `SELECT a.*, s.ho_ten FROM academic_scores a
                JOIN students s ON a.student_id = s.id WHERE 1=1`;
     const params: any[] = [];
@@ -159,7 +258,7 @@ export function registerIpcHandlers(): void {
     return query(sql, params);
   });
 
-  ipcMain.handle(IPC.SCORES_ACADEMIC_SAVE, async (_event, scores: any[]) => {
+  handle(IPC.SCORES_ACADEMIC_SAVE, 'admin', async (_event, scores: any[]) => {
     for (const s of scores) {
       if (s.id) {
         await query(
@@ -176,13 +275,13 @@ export function registerIpcHandlers(): void {
     return { success: true };
   });
 
-  ipcMain.handle(IPC.SCORES_ACADEMIC_DELETE, async (_event, id: number) => {
+  handle(IPC.SCORES_ACADEMIC_DELETE, 'admin', async (_event, id: number) => {
     await query('DELETE FROM academic_scores WHERE id = ?', [id]);
     return { success: true };
   });
 
   // ============ Discipline Scores ============
-  ipcMain.handle(IPC.SCORES_DISCIPLINE_GET, async (_event, filters: { student_id?: number; unit_id?: number; nam_hoc?: number; thang?: number }) => {
+  handle(IPC.SCORES_DISCIPLINE_GET, 'auth', async (_event, filters: { student_id?: number; unit_id?: number; nam_hoc?: number; thang?: number }) => {
     let sql = `SELECT d.*, s.ho_ten FROM discipline_scores d
                JOIN students s ON d.student_id = s.id WHERE 1=1`;
     const params: any[] = [];
@@ -215,7 +314,7 @@ export function registerIpcHandlers(): void {
     return query(sql, params);
   });
 
-  ipcMain.handle(IPC.SCORES_DISCIPLINE_SAVE, async (_event, scores: any[]) => {
+  handle(IPC.SCORES_DISCIPLINE_SAVE, 'admin', async (_event, scores: any[]) => {
     for (const s of scores) {
       const diem_thang = [s.tuan_1, s.tuan_2, s.tuan_3, s.tuan_4]
         .filter((v: any) => v != null)
@@ -244,13 +343,13 @@ export function registerIpcHandlers(): void {
     return { success: true };
   });
 
-  ipcMain.handle(IPC.SCORES_DISCIPLINE_DELETE, async (_event, id: number) => {
+  handle(IPC.SCORES_DISCIPLINE_DELETE, 'admin', async (_event, id: number) => {
     await query('DELETE FROM discipline_scores WHERE id = ?', [id]);
     return { success: true };
   });
 
   // ============ Absences ============
-  ipcMain.handle(IPC.ABSENCES_GET, async (_event, filters: { student_id?: number; unit_id?: number }) => {
+  handle(IPC.ABSENCES_GET, 'auth', async (_event, filters: { student_id?: number; unit_id?: number }) => {
     let sql = `SELECT a.*, s.ho_ten FROM absences a
                JOIN students s ON a.student_id = s.id WHERE 1=1`;
     const params: any[] = [];
@@ -275,7 +374,7 @@ export function registerIpcHandlers(): void {
     return query(sql, params);
   });
 
-  ipcMain.handle(IPC.ABSENCES_CREATE, async (_event, data: { student_id: number; ngay_vang: string; ghi_chu?: string }) => {
+  handle(IPC.ABSENCES_CREATE, 'admin', async (_event, data: { student_id: number; ngay_vang: string; ghi_chu?: string }) => {
     const result = await query<any>(
       'INSERT INTO absences (student_id, ngay_vang, ghi_chu) VALUES (?,?,?)',
       [data.student_id, data.ngay_vang, data.ghi_chu || null]
@@ -283,13 +382,13 @@ export function registerIpcHandlers(): void {
     return { id: result.insertId };
   });
 
-  ipcMain.handle(IPC.ABSENCES_DELETE, async (_event, id: number) => {
+  handle(IPC.ABSENCES_DELETE, 'admin', async (_event, id: number) => {
     await query('DELETE FROM absences WHERE id = ?', [id]);
     return { success: true };
   });
 
   // ============ Violations ============
-  ipcMain.handle(IPC.VIOLATIONS_GET, async (_event, filters: { student_id?: number; unit_id?: number }) => {
+  handle(IPC.VIOLATIONS_GET, 'auth', async (_event, filters: { student_id?: number; unit_id?: number }) => {
     let sql = `SELECT v.*, s.ho_ten FROM violations v
                JOIN students s ON v.student_id = s.id WHERE 1=1`;
     const params: any[] = [];
@@ -314,7 +413,7 @@ export function registerIpcHandlers(): void {
     return query(sql, params);
   });
 
-  ipcMain.handle(IPC.VIOLATIONS_CREATE, async (_event, data: { student_id: number; loai: string; ngay: string; ly_do?: string }) => {
+  handle(IPC.VIOLATIONS_CREATE, 'admin', async (_event, data: { student_id: number; loai: string; ngay: string; ly_do?: string }) => {
     const result = await query<any>(
       'INSERT INTO violations (student_id, loai, ngay, ly_do) VALUES (?,?,?,?)',
       [data.student_id, data.loai, data.ngay, data.ly_do || null]
@@ -322,13 +421,13 @@ export function registerIpcHandlers(): void {
     return { id: result.insertId };
   });
 
-  ipcMain.handle(IPC.VIOLATIONS_DELETE, async (_event, id: number) => {
+  handle(IPC.VIOLATIONS_DELETE, 'admin', async (_event, id: number) => {
     await query('DELETE FROM violations WHERE id = ?', [id]);
     return { success: true };
   });
 
   // ============ Awards ============
-  ipcMain.handle(IPC.AWARDS_GET, async (_event, filters: { student_id?: number; unit_id?: number }) => {
+  handle(IPC.AWARDS_GET, 'auth', async (_event, filters: { student_id?: number; unit_id?: number }) => {
     let sql = `SELECT aw.*, s.ho_ten FROM awards aw
                JOIN students s ON aw.student_id = s.id WHERE 1=1`;
     const params: any[] = [];
@@ -353,7 +452,7 @@ export function registerIpcHandlers(): void {
     return query(sql, params);
   });
 
-  ipcMain.handle(IPC.AWARDS_SAVE, async (_event, data: any) => {
+  handle(IPC.AWARDS_SAVE, 'admin', async (_event, data: any) => {
     const tong_ket = [data.diem_nam_1, data.diem_nam_2, data.diem_nam_3, data.diem_nam_4]
       .filter((v: any) => v != null);
     const avg = tong_ket.length > 0 ? tong_ket.reduce((a: number, b: number) => a + b, 0) / tong_ket.length : null;
@@ -378,7 +477,7 @@ export function registerIpcHandlers(): void {
     return { success: true };
   });
 
-  ipcMain.handle(IPC.AWARDS_DELETE, async (_event, id: number) => {
+  handle(IPC.AWARDS_DELETE, 'admin', async (_event, id: number) => {
     await query('DELETE FROM awards WHERE id = ?', [id]);
     return { success: true };
   });

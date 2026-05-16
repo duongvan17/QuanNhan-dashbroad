@@ -7,6 +7,26 @@ export interface DbConfig {
   database: string;
 }
 
+// ============ Tài khoản / Phân quyền ============
+export type UserRole = 'admin' | 'user';
+
+export interface User {
+  id: number;
+  username: string;
+  role: UserRole;
+  must_change_password?: boolean;
+  created_at?: string;
+}
+
+export interface AuthResult {
+  token: string;
+  user: User;
+}
+
+export interface AuthStatus {
+  dbConnected: boolean;
+}
+
 // ============ Đơn vị tổ chức ============
 export type UnitType = 'tieu_doan' | 'dai_doi' | 'trung_doi';
 
@@ -112,6 +132,21 @@ export const IPC = {
   GET_CONFIG: 'config:get',
   SET_CONFIG: 'config:set',
   TEST_CONNECTION: 'db:test-connection',
+
+  // Auth
+  AUTH_STATUS: 'auth:status',
+  AUTH_LOGIN: 'auth:login',
+  AUTH_REGISTER: 'auth:register',
+  AUTH_ME: 'auth:me',
+  AUTH_LOGOUT: 'auth:logout',
+  AUTH_CHANGE_PASSWORD: 'auth:change-password',
+
+  // Users (admin)
+  USERS_LIST: 'users:list',
+  USERS_CREATE: 'users:create',
+  USERS_DELETE: 'users:delete',
+  USERS_SET_ROLE: 'users:set-role',
+  USERS_RESET_PASSWORD: 'users:reset-password',
 
   // Database
   DB_QUERY: 'db:query',

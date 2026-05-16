@@ -11,6 +11,7 @@ import {
   getStudents, createStudent, getUnits, getAbsences, getAcademicScores, getDisciplineScores, getAwards,
   saveAcademicScores, saveDisciplineScores, createAbsence, createViolation, saveAward,
 } from '../services/api';
+import { useAuth } from '../auth/AuthContext';
 import type { Unit } from '../../shared/types';
 
 const { Title, Text } = Typography;
@@ -117,6 +118,7 @@ const templates = [
 
 const ExcelPage: React.FC = () => {
   const { message } = App.useApp();
+  const { isAdmin } = useAuth();
   const [activeTab, setActiveTab] = useState('template');
   const [units, setUnits] = useState<Unit[]>([]);
   const [exportType, setExportType] = useState('students');
@@ -947,7 +949,7 @@ const ExcelPage: React.FC = () => {
             </Card>
           ),
         },
-      ]} />
+      ].filter((t) => isAdmin || t.key !== 'import')} />
     </div>
   );
 };

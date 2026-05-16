@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Card, Tree, Button, Modal, Form, Input, Select, Space, Typography, Popconfirm, App, Empty } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, ApartmentOutlined } from '@ant-design/icons';
 import { getUnits, createUnit, updateUnit, deleteUnit } from '../services/api';
+import { useAuth } from '../auth/AuthContext';
 import type { Unit, UnitType } from '../../shared/types';
 
 const { Title } = Typography;
@@ -14,6 +15,7 @@ const unitTypeLabels: Record<UnitType, string> = {
 
 const UnitsPage: React.FC = () => {
   const { message } = App.useApp();
+  const { isAdmin } = useAuth();
   const [units, setUnits] = useState<Unit[]>([]);
   const [loading, setLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
@@ -44,26 +46,30 @@ const UnitsPage: React.FC = () => {
             <span style={{ fontWeight: u.type === 'tieu_doan' ? 600 : 400 }}>
               {unitTypeLabels[u.type]}: {u.name}
             </span>
-            <Button
-              type="text"
-              size="small"
-              icon={<EditOutlined />}
-              onClick={(e) => { e.stopPropagation(); openEdit(u); }}
-            />
-            <Popconfirm
-              title="Xóa đơn vị này?"
-              description="Tất cả đơn vị con và học viên sẽ bị xóa!"
-              onConfirm={(e) => { e?.stopPropagation(); handleDelete(u.id); }}
-              onCancel={(e) => e?.stopPropagation()}
-            >
+            {isAdmin && (
               <Button
                 type="text"
                 size="small"
-                danger
-                icon={<DeleteOutlined />}
-                onClick={(e) => e.stopPropagation()}
+                icon={<EditOutlined />}
+                onClick={(e) => { e.stopPropagation(); openEdit(u); }}
               />
-            </Popconfirm>
+            )}
+            {isAdmin && (
+              <Popconfirm
+                title="Xóa đơn vị này?"
+                description="Tất cả đơn vị con và học viên sẽ bị xóa!"
+                onConfirm={(e) => { e?.stopPropagation(); handleDelete(u.id); }}
+                onCancel={(e) => e?.stopPropagation()}
+              >
+                <Button
+                  type="text"
+                  size="small"
+                  danger
+                  icon={<DeleteOutlined />}
+                  onClick={(e) => e.stopPropagation()}
+                />
+              </Popconfirm>
+            )}
           </Space>
         ),
         children: buildTree(items, u.id),
@@ -127,9 +133,11 @@ const UnitsPage: React.FC = () => {
         <Title level={4} style={{ margin: 0 }}>
           <ApartmentOutlined /> Quản lý Đơn vị
         </Title>
-        <Button type="primary" icon={<PlusOutlined />} onClick={openAdd}>
-          Thêm đơn vị
-        </Button>
+        {isAdmin && (
+          <Button type="primary" icon={<PlusOutlined />} onClick={openAdd}>
+            Thêm đơn vị
+          </Button>
+        )}
       </Space>
 
       <Card loading={loading}>

@@ -1,14 +1,28 @@
-import type { DbConfig } from '../../shared/types';
+import type { DbConfig, AuthResult, AuthStatus, User, UserRole } from '../../shared/types';
 
 const API_BASE = '/api';
 
 const isElectron = !!(window as any).electronAPI;
+const invoke = (channel: string, ...args: any[]) => (window as any).electronAPI.invoke(channel, ...args);
+
+// ============ Token ============
+const TOKEN_KEY = 'qnn_auth_token';
+export const tokenStore = {
+  get: (): string | null => localStorage.getItem(TOKEN_KEY),
+  set: (t: string) => localStorage.setItem(TOKEN_KEY, t),
+  clear: () => localStorage.removeItem(TOKEN_KEY),
+};
 
 // ============ HTTP fetch helper ============
 async function fetchApi<T = any>(url: string, options?: RequestInit): Promise<T> {
+  const token = tokenStore.get();
   const res = await fetch(`${API_BASE}${url}`, {
-    headers: { 'Content-Type': 'application/json' },
     ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(options?.headers || {}),
+    },
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }));
@@ -16,6 +30,51 @@ async function fetchApi<T = any>(url: string, options?: RequestInit): Promise<T>
   }
   return res.json();
 }
+
+// ============ Auth ============
+export const getAuthStatus = (): Promise<AuthStatus> =>
+  isElectron ? invoke('auth:status') : fetchApi('/auth/status');
+
+export const apiLogin = (username: string, password: string): Promise<AuthResult> =>
+  isElectron
+    ? invoke('auth:login', { username, password })
+    : fetchApi('/auth/login', { method: 'POST', body: JSON.stringify({ username, password }) });
+
+export const apiRegister = (username: string, password: string): Promise<AuthResult> =>
+  isElectron
+    ? invoke('auth:register', { username, password })
+    : fetchApi('/auth/register', { method: 'POST', body: JSON.stringify({ username, password }) });
+
+export const apiMe = (): Promise<{ user: User | null }> =>
+  isElectron ? invoke('auth:me', tokenStore.get()) : fetchApi('/auth/me');
+
+export const apiLogout = (): Promise<any> =>
+  isElectron ? invoke('auth:logout') : Promise.resolve({ success: true });
+
+export const apiChangePassword = (oldPassword: string, newPassword: string) =>
+  isElectron
+    ? invoke('auth:change-password', { oldPassword, newPassword })
+    : fetchApi('/auth/change-password', { method: 'POST', body: JSON.stringify({ oldPassword, newPassword }) });
+
+// ============ Users (admin) ============
+export const getUsers = (): Promise<User[]> =>
+  isElectron ? invoke('users:list') : fetchApi('/users');
+
+export const createUser = (data: { username: string; password: string; role: UserRole }) =>
+  isElectron ? invoke('users:create', data) : fetchApi('/users', { method: 'POST', body: JSON.stringify(data) });
+
+export const deleteUser = (id: number) =>
+  isElectron ? invoke('users:delete', id) : fetchApi(`/users/${id}`, { method: 'DELETE' });
+
+export const setUserRole = (id: number, role: UserRole) =>
+  isElectron
+    ? invoke('users:set-role', { id, role })
+    : fetchApi(`/users/${id}/role`, { method: 'PUT', body: JSON.stringify({ role }) });
+
+export const resetUserPassword = (id: number, newPassword: string) =>
+  isElectron
+    ? invoke('users:reset-password', { id, newPassword })
+    : fetchApi(`/users/${id}/password`, { method: 'PUT', body: JSON.stringify({ newPassword }) });
 
 // ============ Config ============
 export const getDbConfig = (): Promise<DbConfig> =>
