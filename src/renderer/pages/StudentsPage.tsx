@@ -1,11 +1,11 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   Card, Table, Button, Modal, Form, Input, Select, DatePicker, Space, Typography,
-  Popconfirm, App, Drawer, Descriptions, Cascader, Tag, Tooltip, Image,
+  Popconfirm, App, Drawer, Descriptions, Cascader, Tag, Tooltip, Image, Upload,
 } from 'antd';
 import {
   PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined,
-  EyeOutlined, UserOutlined, CopyOutlined,
+  EyeOutlined, UserOutlined, CopyOutlined, UploadOutlined,
 } from '@ant-design/icons';
 import { getStudents, createStudent, updateStudent, deleteStudent, getUnits } from '../services/api';
 import type { Unit, UnitType } from '../../shared/types';
@@ -32,6 +32,18 @@ const StudentsPage: React.FC = () => {
   const [editingStudent, setEditingStudent] = useState<any>(null);
   const [form] = Form.useForm();
   const [searchText, setSearchText] = useState('');
+  const hinhAnh = Form.useWatch('hinh_anh', form);
+
+  const handleImageUpload = (file: File) => {
+    if (file.size > 2 * 1024 * 1024) {
+      message.error('Ảnh tối đa 2MB');
+      return false;
+    }
+    const reader = new FileReader();
+    reader.onload = () => form.setFieldsValue({ hinh_anh: reader.result as string });
+    reader.readAsDataURL(file);
+    return false; // ngăn antd tự upload
+  };
 
   const loadStudents = useCallback(async () => {
     setLoading(true);
@@ -171,6 +183,15 @@ const StudentsPage: React.FC = () => {
       render: (_: any, __: any, index: number) => (filters.page - 1) * filters.pageSize + index + 1,
     },
     {
+      title: 'Ảnh',
+      dataIndex: 'hinh_anh',
+      width: 64,
+      align: 'center' as const,
+      render: (v: string | null) => v
+        ? <Image src={v} width={36} height={36} style={{ objectFit: 'cover', borderRadius: 6 }} />
+        : <UserOutlined style={{ fontSize: 20, color: '#ccc' }} />,
+    },
+    {
       title: 'Họ và tên',
       dataIndex: 'ho_ten',
       width: 200,
@@ -245,7 +266,7 @@ const StudentsPage: React.FC = () => {
           rowKey="id"
           loading={loading}
           size="middle"
-          scroll={{ x: 1100 }}
+          scroll={{ x: 1180 }}
           pagination={{
             current: filters.page,
             pageSize: filters.pageSize,
@@ -268,6 +289,31 @@ const StudentsPage: React.FC = () => {
         width={800}
       >
         <Form form={form} layout="vertical" style={{ maxHeight: '60vh', overflowY: 'auto', paddingRight: 16 }}>
+          <Form.Item name="hinh_anh" hidden><Input /></Form.Item>
+          <Form.Item label="Hình ảnh">
+            <Space align="start" size={16}>
+              {hinhAnh ? (
+                <Image src={hinhAnh} width={88} height={88} style={{ objectFit: 'cover', borderRadius: 8 }} />
+              ) : (
+                <div style={{
+                  width: 88, height: 88, borderRadius: 8, background: '#f5f5f5',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#bbb',
+                }}>
+                  <UserOutlined style={{ fontSize: 32 }} />
+                </div>
+              )}
+              <Space direction="vertical">
+                <Upload accept="image/*" showUploadList={false} maxCount={1} beforeUpload={handleImageUpload}>
+                  <Button icon={<UploadOutlined />}>Chọn ảnh</Button>
+                </Upload>
+                {hinhAnh && (
+                  <Button danger size="small" onClick={() => form.setFieldsValue({ hinh_anh: null })}>
+                    Xóa ảnh
+                  </Button>
+                )}
+              </Space>
+            </Space>
+          </Form.Item>
           <Title level={5}>Thông tin cơ bản</Title>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 16px' }}>
             <Form.Item name="unit_id" label="Đơn vị (Trung đội)" rules={[{ required: true, message: 'Chọn đơn vị' }]}>
@@ -338,6 +384,12 @@ const StudentsPage: React.FC = () => {
         width={600}
       >
         {selectedStudent && (
+          <>
+          {selectedStudent.hinh_anh && (
+            <div style={{ textAlign: 'center', marginBottom: 16 }}>
+              <Image src={selectedStudent.hinh_anh} width={150} style={{ borderRadius: 8 }} />
+            </div>
+          )}
           <Descriptions column={1} bordered size="small">
             <Descriptions.Item label="Họ và tên">{selectedStudent.ho_ten}</Descriptions.Item>
             <Descriptions.Item label="Đơn vị">{selectedStudent.unit_name}</Descriptions.Item>
@@ -356,6 +408,7 @@ const StudentsPage: React.FC = () => {
             <Descriptions.Item label="Mẹ - Nghề nghiệp">{selectedStudent.me_nghe_nghiep || '-'}</Descriptions.Item>
             <Descriptions.Item label="Mẹ - Nơi ở">{selectedStudent.me_noi_o || '-'}</Descriptions.Item>
           </Descriptions>
+          </>
         )}
       </Drawer>
     </div>
