@@ -2,13 +2,13 @@ import express from 'express';
 import cors from 'cors';
 import fs from 'fs';
 import path from 'path';
-import { connectDb, testConnection, initTables, query, closeDb, isConnected } from '../main/database';
+import { connectDb, initTables, query, closeDb, isConnected } from '../main/database';
 import {
-  ensureUsersTable, hasAnyUser, needsSetup, login, register, getUserById, changePassword,
+  ensureUsersTable, needsSetup, login, register, getUserById, changePassword,
   listUsers, adminCreateUser, adminDeleteUser, adminSetRole, adminResetPassword,
   verifyToken, type TokenPayload,
 } from '../main/auth';
-import type { DbConfig } from '../shared/types';
+import { DB_CONFIG } from '../main/db-credentials';
 
 const app = express();
 app.use(cors());
@@ -35,65 +35,6 @@ function requireAdmin(req: express.Request, res: express.Response, next: express
   next();
 }
 
-// Cấu hình DB: cho phép khi chưa có user nào (bootstrap) hoặc là admin.
-async function requireConfigAccess(req: express.Request, res: express.Response, next: express.NextFunction) {
-  const bootstrap = !(await hasAnyUser());
-  if (bootstrap) return next();
-  const u = currentUser(req);
-  if (!u) return res.status(401).json({ error: 'Chưa đăng nhập' });
-  if (u.role !== 'admin') return res.status(403).json({ error: 'Chỉ admin mới được cấu hình' });
-  next();
-}
-
-// ============ Config (lưu file) ============
-const CONFIG_FILE = path.join(process.cwd(), '.db-config.json');
-
-function loadConfig(): DbConfig {
-  try {
-    if (fs.existsSync(CONFIG_FILE)) {
-      return JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf-8'));
-    }
-  } catch { /* */ }
-  return { host: '', port: 4000, user: '', password: '', database: '' };
-}
-
-function saveConfig(config: DbConfig): void {
-  fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2), 'utf-8');
-}
-
-let currentConfig: DbConfig = loadConfig();
-
-app.get('/api/config', requireConfigAccess, (_req, res) => {
-  res.json(currentConfig);
-});
-
-app.post('/api/config', requireConfigAccess, (req, res) => {
-  currentConfig = req.body;
-  saveConfig(currentConfig);
-  res.json({ success: true });
-});
-
-app.post('/api/test-connection', requireConfigAccess, async (req, res) => {
-  try {
-    const result = await testConnection(req.body);
-    res.json(result);
-  } catch (err: any) {
-    res.json({ success: false, message: err.message });
-  }
-});
-
-app.post('/api/init-db', requireConfigAccess, async (req, res) => {
-  try {
-    currentConfig = req.body;
-    saveConfig(currentConfig);
-    await connectDb(currentConfig);
-    await initTables();
-    await ensureUsersTable();
-    res.json({ success: true, message: 'Kết nối và khởi tạo database thành công!' });
-  } catch (err: any) {
-    res.json({ success: false, message: `Lỗi: ${err.message}` });
-  }
-});
 
 // ============ Auth ============
 app.get('/api/auth/status', async (_req, res) => {
@@ -666,16 +607,13 @@ app.listen(PORT, async () => {
   console.log(`\n  Server running at http://localhost:${PORT}`);
   console.log(`  API ready - open http://localhost:5173 in browser\n`);
 
-  // Auto-connect nếu đã có config
-  if (currentConfig.host && currentConfig.user) {
-    try {
-      await connectDb(currentConfig);
-      await initTables();
-      await ensureUsersTable();
-      console.log(`  Auto-connected to ${currentConfig.host}:${currentConfig.port}/${currentConfig.database}\n`);
-    } catch (err: any) {
-      console.log(`  Auto-connect failed: ${err.message}\n  → Vào Cài đặt để cấu hình lại\n`);
-    }
+  try {
+    await connectDb(DB_CONFIG);
+    await initTables();
+    await ensureUsersTable();
+    console.log(`  Connected to ${DB_CONFIG.host}:${DB_CONFIG.port}/${DB_CONFIG.database}\n`);
+  } catch (err: any) {
+    console.log(`  DB connect failed: ${err.message}\n`);
   }
 });
 

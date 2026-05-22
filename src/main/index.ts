@@ -1,7 +1,7 @@
 import { app, BrowserWindow, shell } from 'electron';
 import path from 'path';
 import { registerIpcHandlers } from './ipc';
-import { getDbConfig } from './config';
+import { DB_CONFIG } from './db-credentials';
 import { connectDb, initTables, closeDb } from './database';
 import { ensureUsersTable } from './auth';
 
@@ -51,17 +51,14 @@ app.whenReady().then(async () => {
   registerIpcHandlers();
   createWindow();
 
-  // Auto-connect if config exists
-  const config = getDbConfig();
-  if (config.host && config.user) {
-    try {
-      await connectDb(config);
-      await initTables();
-      await ensureUsersTable();
-      console.log('Auto-connected to database');
-    } catch (err) {
-      console.log('Auto-connect failed, user will need to configure manually');
-    }
+  // Tự kết nối DB bằng credentials hardcoded — không cần khách cấu hình.
+  try {
+    await connectDb(DB_CONFIG);
+    await initTables();
+    await ensureUsersTable();
+    console.log('Connected to TiDB');
+  } catch (err) {
+    console.error('DB connect failed:', err);
   }
 });
 

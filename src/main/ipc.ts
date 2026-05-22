@@ -1,10 +1,9 @@
 import { ipcMain } from 'electron';
 import { IPC } from '../shared/types';
-import type { DbConfig, UserRole } from '../shared/types';
-import { getDbConfig, setDbConfig } from './config';
-import { connectDb, testConnection, initTables, query, isConnected } from './database';
+import type { UserRole } from '../shared/types';
+import { query, isConnected } from './database';
 import {
-  ensureUsersTable, hasAnyUser, needsSetup, login, register, getUserById, changePassword,
+  needsSetup, login, register, getUserById, changePassword,
   listUsers, adminCreateUser, adminDeleteUser, adminSetRole, adminResetPassword,
   verifyToken, type TokenPayload,
 } from './auth';
@@ -12,7 +11,7 @@ import {
 // Phiên đăng nhập lưu trong tiến trình main (1 cửa sổ / 1 tiến trình).
 let session: TokenPayload | null = null;
 
-type Mode = 'open' | 'auth' | 'admin' | 'config';
+type Mode = 'open' | 'auth' | 'admin';
 
 function handle(
   channel: string,
@@ -22,10 +21,6 @@ function handle(
   ipcMain.handle(channel, async (event, ...args) => {
     if (mode === 'auth' && !session) throw new Error('Chưa đăng nhập');
     if (mode === 'admin' && session?.role !== 'admin') throw new Error('Chỉ admin mới được thực hiện thao tác này');
-    if (mode === 'config') {
-      const bootstrap = !(await hasAnyUser());
-      if (!bootstrap && session?.role !== 'admin') throw new Error('Chỉ admin mới được cấu hình');
-    }
     return fn(event, ...args);
   });
 }
@@ -101,32 +96,6 @@ export function registerIpcHandlers(): void {
   handle(IPC.USERS_RESET_PASSWORD, 'admin', async (_event, data: { id: number; newPassword: string }) => {
     await adminResetPassword(data.id, data.newPassword);
     return { success: true };
-  });
-
-  // ============ Config ============
-  handle(IPC.GET_CONFIG, 'config', () => {
-    return getDbConfig();
-  });
-
-  handle(IPC.SET_CONFIG, 'config', async (_event, config: DbConfig) => {
-    setDbConfig(config);
-    return { success: true };
-  });
-
-  handle(IPC.TEST_CONNECTION, 'config', async (_event, config: DbConfig) => {
-    return testConnection(config);
-  });
-
-  handle(IPC.DB_INIT, 'config', async (_event, config: DbConfig) => {
-    try {
-      setDbConfig(config);
-      await connectDb(config);
-      await initTables();
-      await ensureUsersTable();
-      return { success: true, message: 'Kết nối và khởi tạo database thành công!' };
-    } catch (err: any) {
-      return { success: false, message: `Lỗi: ${err.message}` };
-    }
   });
 
   // ============ Units ============

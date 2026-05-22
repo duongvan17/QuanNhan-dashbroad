@@ -130,11 +130,6 @@ export interface Award {
 
 // ============ IPC Channels ============
 export const IPC = {
-  // Config
-  GET_CONFIG: 'config:get',
-  SET_CONFIG: 'config:set',
-  TEST_CONNECTION: 'db:test-connection',
-
   // Auth
   AUTH_STATUS: 'auth:status',
   AUTH_LOGIN: 'auth:login',
@@ -149,10 +144,6 @@ export const IPC = {
   USERS_DELETE: 'users:delete',
   USERS_SET_ROLE: 'users:set-role',
   USERS_RESET_PASSWORD: 'users:reset-password',
-
-  // Database
-  DB_QUERY: 'db:query',
-  DB_INIT: 'db:init',
 
   // Units
   UNITS_GET_ALL: 'units:get-all',

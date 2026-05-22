@@ -10,7 +10,6 @@ import {
   BookOutlined,
   StarOutlined,
   FileExcelOutlined,
-  SettingOutlined,
   CalendarOutlined,
   WarningOutlined,
   TrophyOutlined,
@@ -29,7 +28,6 @@ import AbsencesPage from './pages/AbsencesPage';
 import ViolationsPage from './pages/ViolationsPage';
 import AwardsPage from './pages/AwardsPage';
 import ExcelPage from './pages/ExcelPage';
-import SettingsPage from './pages/SettingsPage';
 import UsersPage from './pages/UsersPage';
 import LoginPage from './pages/LoginPage';
 import ForceChangePassword from './pages/ForceChangePassword';
@@ -40,7 +38,7 @@ const { Title } = Typography;
 
 type PageKey =
   | 'dashboard' | 'students' | 'units' | 'academic' | 'discipline'
-  | 'absences' | 'violations' | 'awards' | 'excel' | 'settings' | 'users';
+  | 'absences' | 'violations' | 'awards' | 'excel' | 'users';
 
 const themeConfig = {
   algorithm: theme.defaultAlgorithm,
@@ -139,12 +137,7 @@ const MainLayout: React.FC = () => {
     { key: 'awards', icon: <TrophyOutlined />, label: 'Thi đua khen thưởng' },
     { type: 'divider' as const },
     { key: 'excel', icon: <FileExcelOutlined />, label: 'Excel Import/Export' },
-    ...(isAdmin
-      ? [
-          { key: 'users', icon: <TeamOutlined />, label: 'Quản lý tài khoản' },
-          { key: 'settings', icon: <SettingOutlined />, label: 'Cài đặt' },
-        ]
-      : []),
+    ...(isAdmin ? [{ key: 'users', icon: <TeamOutlined />, label: 'Quản lý tài khoản' }] : []),
   ];
 
   const renderPage = () => {
@@ -159,7 +152,6 @@ const MainLayout: React.FC = () => {
       case 'awards': return <AwardsPage />;
       case 'excel': return <ExcelPage />;
       case 'users': return isAdmin ? <UsersPage /> : <DashboardPage />;
-      case 'settings': return isAdmin ? <SettingsPage /> : <DashboardPage />;
       default: return <DashboardPage />;
     }
   };
@@ -237,21 +229,26 @@ const MainLayout: React.FC = () => {
   );
 };
 
-// ============ Màn hình thiết lập lần đầu (chưa kết nối DB) ============
-const BootstrapSetup: React.FC = () => {
+// ============ Màn hình lỗi kết nối DB (server tạm thời down / mạng) ============
+const DbErrorScreen: React.FC = () => {
   const { refreshStatus } = useAuth();
+  const [retrying, setRetrying] = useState(false);
+  const handleRetry = async () => {
+    setRetrying(true);
+    try { await refreshStatus(); } finally { setRetrying(false); }
+  };
   return (
-    <Layout style={{ minHeight: '100vh' }}>
-      <Content style={{ padding: 28, background: '#f5f5f5', overflowY: 'auto', height: '100vh' }}>
-        <Alert
-          type="warning" showIcon style={{ marginBottom: 16 }}
-          title="Thiết lập lần đầu"
-          description="Chưa kết nối Database. Hãy cấu hình kết nối bên dưới và bấm “Kết nối & Khởi tạo Database”. Sau đó bấm nút tiếp tục để đăng nhập (tài khoản admin mặc định: admin / admin123)."
-          action={<Button type="primary" onClick={refreshStatus}>Đã kết nối xong → Tiếp tục</Button>}
-        />
-        <SettingsPage />
-      </Content>
-    </Layout>
+    <div style={{
+      minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
+      background: 'linear-gradient(135deg, #1677ff 0%, #0a3d91 100%)', padding: 16,
+    }}>
+      <Alert
+        type="error" showIcon style={{ maxWidth: 520 }}
+        title="Không kết nối được Database"
+        description="Có thể do mạng tạm thời gián đoạn hoặc máy chủ TiDB chưa sẵn sàng. Vui lòng kiểm tra kết nối mạng rồi thử lại."
+        action={<Button type="primary" onClick={handleRetry} loading={retrying}>Thử lại</Button>}
+      />
+    </div>
   );
 };
 
@@ -267,7 +264,7 @@ const AppContent: React.FC = () => {
       </div>
     );
   }
-  if (!dbConnected) return <BootstrapSetup />;
+  if (!dbConnected) return <DbErrorScreen />;
   if (!user) return <LoginPage />;
   if (user.must_change_password) return <ForceChangePassword />;
   return <MainLayout />;

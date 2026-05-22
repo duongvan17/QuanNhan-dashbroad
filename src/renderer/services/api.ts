@@ -1,4 +1,4 @@
-import type { DbConfig, AuthResult, AuthStatus, User, UserRole } from '../../shared/types';
+import type { AuthResult, AuthStatus, User, UserRole } from '../../shared/types';
 
 const API_BASE = '/api';
 
@@ -75,25 +75,6 @@ export const resetUserPassword = (id: number, newPassword: string) =>
   isElectron
     ? invoke('users:reset-password', { id, newPassword })
     : fetchApi(`/users/${id}/password`, { method: 'PUT', body: JSON.stringify({ newPassword }) });
-
-// ============ Config ============
-export const getDbConfig = (): Promise<DbConfig> =>
-  isElectron ? (window as any).electronAPI.invoke('config:get') : fetchApi('/config');
-
-export const setDbConfig = (config: DbConfig) =>
-  isElectron
-    ? (window as any).electronAPI.invoke('config:set', config)
-    : fetchApi('/config', { method: 'POST', body: JSON.stringify(config) });
-
-export const testConnection = (config: DbConfig) =>
-  isElectron
-    ? (window as any).electronAPI.invoke('db:test-connection', config)
-    : fetchApi('/test-connection', { method: 'POST', body: JSON.stringify(config) });
-
-export const initDatabase = (config: DbConfig) =>
-  isElectron
-    ? (window as any).electronAPI.invoke('db:init', config)
-    : fetchApi('/init-db', { method: 'POST', body: JSON.stringify(config) });
 
 // ============ Units ============
 export const getUnits = () =>
