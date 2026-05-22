@@ -13,6 +13,6 @@ export const DB_CONFIG: DbConfig = {
   host: 'gateway01.ap-southeast-1.prod.aws.tidbcloud.com',
   port: 4000,
   user: 'PiV7j6KayxDaq1o.root',
-  password: 'FYUHJf5tTzVffsSU',
+  password: '8xgAWo6NRnQ2iW9H',
   database: 'test',
 };
