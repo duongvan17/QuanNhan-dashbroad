@@ -2,10 +2,25 @@ import mysql from 'mysql2/promise';
 import type { DbConfig } from '../shared/types';
 
 let pool: mysql.Pool | null = null;
+// Nhớ config lần cuối kết nối thành công để tự reconnect khi TiDB ngủ đông
+// / pool chết do laptop sleep, đổi mạng, v.v.
+let lastConfig: DbConfig | null = null;
+
+const CONNECTION_ERROR_CODES = new Set([
+  'PROTOCOL_CONNECTION_LOST', 'ECONNRESET', 'ECONNREFUSED', 'ETIMEDOUT',
+  'ENOTFOUND', 'EAI_AGAIN', 'EPIPE', 'ER_SERVER_SHUTDOWN', 'PROTOCOL_ENQUEUE_AFTER_FATAL_ERROR',
+]);
+
+function isConnectionError(err: any): boolean {
+  const code = err?.code || err?.errno;
+  if (code && CONNECTION_ERROR_CODES.has(String(code))) return true;
+  const msg = String(err?.message || '');
+  return /closed state|pool is closed|connection lost|server has gone away|handshake/i.test(msg);
+}
 
 export async function connectDb(config: DbConfig): Promise<void> {
   if (pool) {
-    await pool.end();
+    try { await pool.end(); } catch { /* ignore */ }
   }
   pool = mysql.createPool({
     host: config.host,
@@ -17,10 +32,23 @@ export async function connectDb(config: DbConfig): Promise<void> {
     waitForConnections: true,
     connectionLimit: 5,
     queueLimit: 0,
+    // TiDB Serverless mất ~5-15s để wake-up sau khi ngủ đông
+    connectTimeout: 30000,
   });
   // Test connection
   const conn = await pool.getConnection();
   conn.release();
+  lastConfig = config;
+}
+
+async function tryReconnect(): Promise<boolean> {
+  if (!lastConfig) return false;
+  try {
+    await connectDb(lastConfig);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export async function testConnection(config: DbConfig): Promise<{ success: boolean; message: string }> {
@@ -43,10 +71,25 @@ export async function testConnection(config: DbConfig): Promise<{ success: boole
   }
 }
 
-export async function query<T = any>(sql: string, params?: any[]): Promise<T> {
-  if (!pool) throw new Error('Chưa kết nối database');
-  const [rows] = params && params.length > 0 ? await pool.execute(sql, params) : await pool.query(sql);
+async function runOnce<T>(sql: string, params?: any[]): Promise<T> {
+  const [rows] = params && params.length > 0 ? await pool!.execute(sql, params) : await pool!.query(sql);
   return rows as T;
+}
+
+export async function query<T = any>(sql: string, params?: any[]): Promise<T> {
+  if (!pool) {
+    if (!(await tryReconnect())) throw new Error('Chưa kết nối database');
+  }
+  try {
+    return await runOnce<T>(sql, params);
+  } catch (err: any) {
+    // Pool còn sống nhưng connection chết (TiDB hibernate, mạng gián đoạn,...)
+    // Thử kết nối lại 1 lần rồi chạy lại query.
+    if (isConnectionError(err) && (await tryReconnect())) {
+      return runOnce<T>(sql, params);
+    }
+    throw err;
+  }
 }
 
 export async function getPool(): Promise<mysql.Pool> {
