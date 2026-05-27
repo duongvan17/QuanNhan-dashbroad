@@ -256,16 +256,25 @@ const ExcelPage: React.FC = () => {
       if (cell.value) headerStyle(cell);
     });
 
-    // Header row: STT, Họ và tên, TÍN CHỈ, 1, 2, 3, ... (subjects as columns)
+    // Header row: STT, Họ và tên, (8 cột tên môn - sửa thành tên thật rồi mới import),
+    // Trung bình, Xếp loại. Format tên môn: "Toán cao cấp (3tc)" để parse được tín chỉ.
     const mainHeaders: any[] = new Array(colCount).fill(null);
     mainHeaders[0] = 'STT';
     mainHeaders[1] = 'Họ và tên';
-    mainHeaders[2] = 'TÍN CHỈ';
-    for (let i = 3; i < 11; i++) mainHeaders[i] = i - 2; // Môn 1-8
-    mainHeaders[11] = '';
-    mainHeaders[12] = '';
+    for (let i = 2; i < 10; i++) mainHeaders[i] = `Tên môn ${i - 1} (1tc)`;
+    mainHeaders[10] = 'Trung bình';
+    mainHeaders[11] = 'Xếp loại';
     const mhr = ws.addRow(mainHeaders);
-    mhr.eachCell((cell: any) => headerStyle(cell));
+    mhr.height = 32;
+    mhr.eachCell((cell: any) => {
+      headerStyle(cell);
+      cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+    });
+
+    // Note row
+    const noteR = ws.addRow(['', 'CHÚ Ý: Sửa "Tên môn N (1tc)" thành tên môn thật + tín chỉ (vd "Toán cao cấp (3tc)") trước khi import']);
+    ws.mergeCells(noteR.number, 2, noteR.number, colCount);
+    noteR.getCell(2).font = { italic: true, color: { argb: 'FF888888' }, size: 11 };
 
     // Empty rows
     for (let i = 0; i < 30; i++) {
@@ -278,11 +287,10 @@ const ExcelPage: React.FC = () => {
     // Column widths
     ws.getColumn(1).width = 8;
     ws.getColumn(2).width = 28;
-    ws.getColumn(3).width = 12;
-    for (let i = 4; i <= 11; i++) ws.getColumn(i).width = 10;
-    ws.getColumn(12).width = 14;
-    ws.getColumn(13).width = 14;
-    for (let i = 14; i <= 17; i++) ws.getColumn(i).width = 10;
+    for (let i = 3; i <= 10; i++) ws.getColumn(i).width = 14;
+    ws.getColumn(11).width = 12;
+    ws.getColumn(12).width = 12;
+    for (let i = 13; i <= 17; i++) ws.getColumn(i).width = 10;
   };
 
   // ========== DOWNLOAD TEMPLATE ==========
@@ -477,10 +485,17 @@ const ExcelPage: React.FC = () => {
           });
           const scores = scoreKeys
             .filter((k) => row[k] != null && row[k] !== '' && !isNaN(Number(row[k])))
-            .map((k, idx) => ({
-              student_id: sid, nam_hoc: 1, hoc_ky: 1,
-              mon_hoc: `Môn ${idx + 1}`, tin_chi: 1, diem: Number(row[k]),
-            }));
+            .map((k) => {
+              // Tên môn = chính header trong Excel (đã đổi sang tên thật trong template)
+              // Tín chỉ: parse "Toán (3tc)" -> 3, mặc định 1
+              const tcMatch = k.match(/\((\d+)\s*tc?\)/i);
+              const tin_chi = tcMatch ? Number(tcMatch[1]) : 1;
+              const mon_hoc = k.replace(/\s*\(\d+\s*tc?\)\s*$/i, '').trim();
+              return {
+                student_id: sid, nam_hoc: 1, hoc_ky: 1,
+                mon_hoc, tin_chi, diem: Number(row[k]),
+              };
+            });
           if (scores.length > 0) {
             try {
               await saveAcademicScores(scores);

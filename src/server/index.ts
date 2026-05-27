@@ -593,6 +593,85 @@ app.post('/api/awards', async (req, res) => {
   }
 });
 
+// ============ Party Members ============
+const PARTY_FIELDS = [
+  'unit_id', 'ho_ten', 'hinh_anh', 'ngay_sinh', 'que_quan', 'noi_dkht',
+  'dan_toc', 'ton_giao', 'trinh_do', 'nghe_nghiep',
+  'ngay_vao_doan', 'ngay_vao_dang', 'ngay_vao_dang_chinh_thuc', 'nguoi_gioi_thieu',
+];
+
+app.get('/api/party', async (req, res) => {
+  try {
+    const { unit_id, search, status } = req.query as any;
+    let sql = `SELECT p.*, u.name AS unit_name FROM party_members p
+               LEFT JOIN units u ON p.unit_id = u.id WHERE 1=1`;
+    const params: any[] = [];
+    if (unit_id) {
+      sql += ` AND p.unit_id IN (
+        WITH RECURSIVE unit_tree AS (
+          SELECT id FROM units WHERE id = ?
+          UNION ALL
+          SELECT u2.id FROM units u2 JOIN unit_tree ut ON u2.parent_id = ut.id
+        )
+        SELECT id FROM unit_tree
+      )`;
+      params.push(Number(unit_id));
+    }
+    if (search) { sql += ' AND p.ho_ten LIKE ?'; params.push(`%${search}%`); }
+    if (status === 'official') sql += ' AND p.ngay_vao_dang_chinh_thuc IS NOT NULL';
+    if (status === 'pending') sql += ' AND p.ngay_vao_dang_chinh_thuc IS NULL';
+    sql += ' ORDER BY p.ho_ten ASC';
+    res.json(await query(sql, params));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/party/count-unofficial', async (_req, res) => {
+  try {
+    const rows = await query<any[]>(
+      'SELECT COUNT(*) AS c FROM party_members WHERE ngay_vao_dang_chinh_thuc IS NULL'
+    );
+    res.json({ count: rows[0]?.c ?? 0 });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/party', async (req, res) => {
+  try {
+    const values = PARTY_FIELDS.map((f) => req.body[f] ?? null);
+    const result = await query<any>(
+      `INSERT INTO party_members (${PARTY_FIELDS.join(', ')}) VALUES (${PARTY_FIELDS.map(() => '?').join(', ')})`,
+      values
+    );
+    res.json({ id: result.insertId });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/party/:id', async (req, res) => {
+  try {
+    const setClause = PARTY_FIELDS.map((f) => `${f} = ?`).join(', ');
+    const values = PARTY_FIELDS.map((f) => req.body[f] ?? null);
+    values.push(Number(req.params.id));
+    await query(`UPDATE party_members SET ${setClause} WHERE id = ?`, values);
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/party/:id', async (req, res) => {
+  try {
+    await query('DELETE FROM party_members WHERE id = ?', [Number(req.params.id)]);
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ============ Serve frontend (production) ============
 const distPath = path.join(process.cwd(), 'dist', 'renderer');
 if (fs.existsSync(distPath)) {

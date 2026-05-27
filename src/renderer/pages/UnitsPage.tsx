@@ -1,7 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { Card, Tree, Button, Modal, Form, Input, Select, Space, Typography, Popconfirm, App, Empty } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined, ApartmentOutlined } from '@ant-design/icons';
-import { getUnits, createUnit, updateUnit, deleteUnit } from '../services/api';
+import {
+  Card, Tree, Button, Modal, Form, Input, Select, Space, Typography,
+  Popconfirm, App, Empty, Row, Col, Statistic, Tag,
+} from 'antd';
+import {
+  PlusOutlined, EditOutlined, DeleteOutlined, ApartmentOutlined,
+  TeamOutlined, UserOutlined, TrophyOutlined,
+} from '@ant-design/icons';
+import { getUnits, createUnit, updateUnit, deleteUnit, getStudents } from '../services/api';
 import { useAuth } from '../auth/AuthContext';
 import type { Unit, UnitType } from '../../shared/types';
 
@@ -21,12 +27,23 @@ const UnitsPage: React.FC = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingUnit, setEditingUnit] = useState<Unit | null>(null);
   const [form] = Form.useForm();
+  const [studentsByUnit, setStudentsByUnit] = useState<Record<number, number>>({});
+  const [totalStudents, setTotalStudents] = useState(0);
 
-  const loadUnits = async () => {
+  const loadData = async () => {
     setLoading(true);
     try {
-      const data = await getUnits();
-      setUnits(data);
+      const [unitData, studentRes] = await Promise.all([
+        getUnits(),
+        getStudents({ pageSize: 10000 }),
+      ]);
+      setUnits(unitData);
+      const counts: Record<number, number> = {};
+      (studentRes.data || []).forEach((s: any) => {
+        counts[s.unit_id] = (counts[s.unit_id] || 0) + 1;
+      });
+      setStudentsByUnit(counts);
+      setTotalStudents(studentRes.total ?? (studentRes.data || []).length);
     } catch (err: any) {
       message.error('Lỗi tải đơn vị: ' + err.message);
     } finally {
@@ -34,18 +51,35 @@ const UnitsPage: React.FC = () => {
     }
   };
 
-  useEffect(() => { loadUnits(); }, []);
+  useEffect(() => { loadData(); }, []);
+
+  // Đếm HV trong cây con (gồm trung đội + các con của đại đội/tiểu đoàn)
+  const subtreeStudentCount = (unitId: number): number => {
+    let total = studentsByUnit[unitId] || 0;
+    units.filter((u) => u.parent_id === unitId).forEach((c) => {
+      total += subtreeStudentCount(c.id);
+    });
+    return total;
+  };
+
+  const countByType = (type: UnitType) => units.filter((u) => u.type === type).length;
 
   const buildTree = (items: Unit[], parentId: number | null = null): any[] => {
     return items
       .filter((u) => u.parent_id === parentId)
-      .map((u) => ({
+      .map((u) => {
+        const count = subtreeStudentCount(u.id);
+        const tagColor = u.type === 'tieu_doan' ? 'blue' : u.type === 'dai_doi' ? 'cyan' : 'geekblue';
+        return {
         key: u.id,
         title: (
           <Space>
             <span style={{ fontWeight: u.type === 'tieu_doan' ? 600 : 400 }}>
               {unitTypeLabels[u.type]}: {u.name}
             </span>
+            <Tag color={tagColor} style={{ marginInlineStart: 4 }}>
+              <UserOutlined /> {count} HV
+            </Tag>
             {isAdmin && (
               <Button
                 type="text"
@@ -73,7 +107,8 @@ const UnitsPage: React.FC = () => {
           </Space>
         ),
         children: buildTree(items, u.id),
-      }));
+      };
+      });
   };
 
   const getParentOptions = (type: UnitType) => {
@@ -109,7 +144,7 @@ const UnitsPage: React.FC = () => {
       }
       message.success(editingUnit ? 'Đã cập nhật' : 'Đã thêm');
       setModalOpen(false);
-      loadUnits();
+      loadData();
     } catch (err: any) {
       message.error('Lỗi: ' + err.message);
     }
@@ -119,7 +154,7 @@ const UnitsPage: React.FC = () => {
     try {
       await deleteUnit(id);
       message.success('Đã xóa');
-      loadUnits();
+      loadData();
     } catch (err: any) {
       message.error('Lỗi: ' + err.message);
     }
@@ -140,7 +175,42 @@ const UnitsPage: React.FC = () => {
         )}
       </Space>
 
-      <Card loading={loading}>
+      <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
+        <Col xs={12} sm={6}>
+          <Card>
+            <Statistic
+              title="Tiểu đoàn" value={countByType('tieu_doan')}
+              prefix={<ApartmentOutlined />} styles={{ content: { color: '#1677ff', fontSize: 26 } }}
+            />
+          </Card>
+        </Col>
+        <Col xs={12} sm={6}>
+          <Card>
+            <Statistic
+              title="Đại đội" value={countByType('dai_doi')}
+              prefix={<TeamOutlined />} styles={{ content: { color: '#13c2c2', fontSize: 26 } }}
+            />
+          </Card>
+        </Col>
+        <Col xs={12} sm={6}>
+          <Card>
+            <Statistic
+              title="Trung đội" value={countByType('trung_doi')}
+              prefix={<TrophyOutlined />} styles={{ content: { color: '#722ed1', fontSize: 26 } }}
+            />
+          </Card>
+        </Col>
+        <Col xs={12} sm={6}>
+          <Card>
+            <Statistic
+              title="Tổng học viên" value={totalStudents}
+              prefix={<UserOutlined />} styles={{ content: { color: '#52c41a', fontSize: 26 } }}
+            />
+          </Card>
+        </Col>
+      </Row>
+
+      <Card loading={loading} title="Cây tổ chức">
         {units.length > 0 ? (
           <Tree
             treeData={buildTree(units)}

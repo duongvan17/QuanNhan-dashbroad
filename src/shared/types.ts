@@ -66,6 +66,28 @@ export interface Student {
   updated_at?: string;
 }
 
+// ============ Đảng viên ============
+export interface PartyMember {
+  id: number;
+  unit_id: number | null;
+  ho_ten: string;
+  hinh_anh: string | null;
+  ngay_sinh: string | null;
+  que_quan: string | null;
+  noi_dkht: string | null;             // Nơi đăng ký hộ khẩu thường trú
+  dan_toc: string | null;
+  ton_giao: string | null;
+  trinh_do: string | null;             // Trình độ học vấn / chuyên môn / lý luận chính trị
+  nghe_nghiep: string | null;          // Nghề nghiệp, chức vụ, đơn vị công tác
+  ngay_vao_doan: string | null;
+  ngay_vao_dang: string | null;
+  ngay_vao_dang_chinh_thuc: string | null;
+  nguoi_gioi_thieu: string | null;
+  created_at?: string;
+  updated_at?: string;
+  unit_name?: string;
+}
+
 // ============ Điểm học tập ============
 export interface AcademicScore {
   id: number;
@@ -182,6 +204,13 @@ export const IPC = {
   AWARDS_GET: 'awards:get',
   AWARDS_SAVE: 'awards:save',
   AWARDS_DELETE: 'awards:delete',
+
+  // Party Members
+  PARTY_GET: 'party:get',
+  PARTY_CREATE: 'party:create',
+  PARTY_UPDATE: 'party:update',
+  PARTY_DELETE: 'party:delete',
+  PARTY_COUNT_UNOFFICIAL: 'party:count-unofficial',
 
   // Excel
   EXCEL_IMPORT: 'excel:import',

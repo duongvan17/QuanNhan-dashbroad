@@ -3,7 +3,7 @@ import {
   Card, Table, Button, Modal, Form, Input, InputNumber, Select, Space, Typography,
   Cascader, App, Tag, Popconfirm,
 } from 'antd';
-import { PlusOutlined, BookOutlined, CopyOutlined, DeleteOutlined } from '@ant-design/icons';
+import { PlusOutlined, BookOutlined, CopyOutlined, DeleteOutlined, SearchOutlined } from '@ant-design/icons';
 import { getAcademicScores, saveAcademicScores, deleteAcademicScore, getStudents, getUnits } from '../services/api';
 import { useAuth } from '../auth/AuthContext';
 import type { Unit } from '../../shared/types';
@@ -23,6 +23,7 @@ const AcademicPage: React.FC = () => {
   const [editForm] = Form.useForm();
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editingScore, setEditingScore] = useState<any>(null);
+  const [searchText, setSearchText] = useState('');
 
   const loadUnits = async () => {
     try { setUnits(await getUnits()); } catch { /* */ }
@@ -145,9 +146,14 @@ const AcademicPage: React.FC = () => {
 
   // ====== Pivot: group by student, subjects as columns ======
   const buildPivotData = () => {
-    // Lấy danh sách môn học unique
+    // Lấy danh sách môn học unique + tín chỉ (lấy giá trị tín chỉ đầu tiên không null)
     const subjectSet = new Set<string>();
-    scores.forEach((s) => subjectSet.add(s.mon_hoc));
+    const subjectCredit: Record<string, number> = {};
+    scores.forEach((s) => {
+      subjectSet.add(s.mon_hoc);
+      const tc = Number(s.tin_chi);
+      if (subjectCredit[s.mon_hoc] == null && tc > 0) subjectCredit[s.mon_hoc] = tc;
+    });
     const subjects = Array.from(subjectSet).sort();
 
     // Group theo student
@@ -202,10 +208,13 @@ const AcademicPage: React.FC = () => {
       return row;
     });
 
-    return { subjects, rows };
+    return { subjects, rows, subjectCredit };
   };
 
-  const { subjects, rows } = buildPivotData();
+  const { subjects, rows, subjectCredit } = buildPivotData();
+  const displayRows = searchText
+    ? rows.filter((r: any) => (r.ho_ten || '').toLowerCase().includes(searchText.toLowerCase()))
+    : rows;
 
   const getXepLoaiTag = (v: string) => {
     const colors: Record<string, string> = { 'Giỏi': 'green', 'Khá': 'blue', 'Trung bình': 'orange', 'Yếu': 'red' };
@@ -234,9 +243,16 @@ const AcademicPage: React.FC = () => {
     { title: 'STT', width: 60, fixed: 'left', render: (_: any, __: any, i: number) => i + 1 },
     { title: 'Họ và tên', dataIndex: 'ho_ten', width: 200, fixed: 'left' },
     ...subjects.map((sub) => ({
-      title: sub,
+      title: (
+        <div style={{ lineHeight: 1.2 }}>
+          <div style={{ fontWeight: 600 }}>{sub}</div>
+          {subjectCredit[sub] != null && (
+            <div style={{ fontSize: 11, color: '#888', fontWeight: 400 }}>{subjectCredit[sub]} tín chỉ</div>
+          )}
+        </div>
+      ),
       dataIndex: `score_${sub}`,
-      width: 100,
+      width: 110,
       align: 'center' as const,
       render: (v: number | null, record: any) => (
         isAdmin ? (
@@ -290,6 +306,11 @@ const AcademicPage: React.FC = () => {
             <Select.Option value={1}>Học kỳ I</Select.Option>
             <Select.Option value={2}>Học kỳ II</Select.Option>
           </Select>
+          <Input.Search
+            placeholder="Tìm họ tên..." value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
+            style={{ width: 220 }} allowClear enterButton={<SearchOutlined />}
+          />
           <Button icon={<CopyOutlined />} onClick={handleCopy}>Copy bảng</Button>
           {isAdmin && (
             <Button type="primary" icon={<PlusOutlined />} onClick={() => { form.resetFields(); setModalOpen(true); }}>
@@ -302,25 +323,25 @@ const AcademicPage: React.FC = () => {
       <Card styles={{ body: { padding: 0 } }}>
         <Table
           columns={columns}
-          dataSource={rows}
+          dataSource={displayRows}
           rowKey="key"
           loading={loading}
           size="middle"
-          scroll={{ x: 400 + subjects.length * 100 + 220 }}
+          scroll={{ x: 400 + subjects.length * 110 + 240 }}
           pagination={false}
           bordered
         />
       </Card>
 
-      {rows.length > 0 && (
+      {displayRows.length > 0 && (
         <Card size="small" style={{ marginTop: 16 }}>
           <Space size={24}>
-            <span>Tổng: <strong>{rows.length}</strong> học viên, <strong>{subjects.length}</strong> môn</span>
+            <span>Tổng: <strong>{displayRows.length}</strong> học viên, <strong>{subjects.length}</strong> môn</span>
             <span>
-              Giỏi: <Tag color="green">{rows.filter((r) => r.xep_loai === 'Giỏi').length}</Tag>
-              Khá: <Tag color="blue">{rows.filter((r) => r.xep_loai === 'Khá').length}</Tag>
-              TB: <Tag color="orange">{rows.filter((r) => r.xep_loai === 'Trung bình').length}</Tag>
-              Yếu: <Tag color="red">{rows.filter((r) => r.xep_loai === 'Yếu').length}</Tag>
+              Giỏi: <Tag color="green">{displayRows.filter((r) => r.xep_loai === 'Giỏi').length}</Tag>
+              Khá: <Tag color="blue">{displayRows.filter((r) => r.xep_loai === 'Khá').length}</Tag>
+              TB: <Tag color="orange">{displayRows.filter((r) => r.xep_loai === 'Trung bình').length}</Tag>
+              Yếu: <Tag color="red">{displayRows.filter((r) => r.xep_loai === 'Yếu').length}</Tag>
             </span>
           </Space>
         </Card>

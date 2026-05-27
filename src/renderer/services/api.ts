@@ -219,3 +219,25 @@ export const deleteAward = (id: number) =>
   isElectron
     ? (window as any).electronAPI.invoke('awards:delete', id)
     : fetchApi(`/awards/${id}`, { method: 'DELETE' });
+
+// ============ Party Members ============
+export const getPartyMembers = (filters: { unit_id?: number; search?: string; status?: 'official' | 'pending' }) => {
+  if (isElectron) return invoke('party:get', filters);
+  const params = new URLSearchParams();
+  if (filters.unit_id) params.set('unit_id', String(filters.unit_id));
+  if (filters.search) params.set('search', filters.search);
+  if (filters.status) params.set('status', filters.status);
+  return fetchApi(`/party?${params}`);
+};
+
+export const createPartyMember = (data: any) =>
+  isElectron ? invoke('party:create', data) : fetchApi('/party', { method: 'POST', body: JSON.stringify(data) });
+
+export const updatePartyMember = (data: any) =>
+  isElectron ? invoke('party:update', data) : fetchApi(`/party/${data.id}`, { method: 'PUT', body: JSON.stringify(data) });
+
+export const deletePartyMember = (id: number) =>
+  isElectron ? invoke('party:delete', id) : fetchApi(`/party/${id}`, { method: 'DELETE' });
+
+export const countUnofficialParty = (): Promise<{ count: number }> =>
+  isElectron ? invoke('party:count-unofficial') : fetchApi('/party/count-unofficial');

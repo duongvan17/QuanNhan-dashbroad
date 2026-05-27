@@ -204,6 +204,27 @@ export async function initTables(): Promise<void> {
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE
     )`,
+
+    `CREATE TABLE IF NOT EXISTS party_members (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      unit_id INT NULL,
+      ho_ten VARCHAR(255) NOT NULL,
+      hinh_anh LONGTEXT NULL,
+      ngay_sinh DATE NULL,
+      que_quan VARCHAR(500) NULL,
+      noi_dkht VARCHAR(500) NULL,
+      dan_toc VARCHAR(100) NULL,
+      ton_giao VARCHAR(100) NULL,
+      trinh_do VARCHAR(500) NULL,
+      nghe_nghiep VARCHAR(500) NULL,
+      ngay_vao_doan DATE NULL,
+      ngay_vao_dang DATE NULL,
+      ngay_vao_dang_chinh_thuc DATE NULL,
+      nguoi_gioi_thieu VARCHAR(255) NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (unit_id) REFERENCES units(id) ON DELETE SET NULL
+    )`,
   ];
 
   for (const sql of statements) {

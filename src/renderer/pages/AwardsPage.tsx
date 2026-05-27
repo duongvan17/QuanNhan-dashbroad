@@ -1,9 +1,9 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
-  Card, Table, Button, Modal, Form, InputNumber, Select, Space, Typography,
+  Card, Table, Button, Modal, Form, Input, InputNumber, Select, Space, Typography,
   Cascader, App, Tag, Popconfirm,
 } from 'antd';
-import { PlusOutlined, TrophyOutlined, CopyOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
+import { PlusOutlined, TrophyOutlined, CopyOutlined, EditOutlined, DeleteOutlined, SearchOutlined } from '@ant-design/icons';
 import { getAwards, saveAward, deleteAward, getStudents, getUnits } from '../services/api';
 import { useAuth } from '../auth/AuthContext';
 import type { Unit } from '../../shared/types';
@@ -20,6 +20,10 @@ const AwardsPage: React.FC = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [filters, setFilters] = useState<any>({});
   const [form] = Form.useForm();
+  const [searchText, setSearchText] = useState('');
+  const displayAwards = searchText
+    ? awards.filter((a) => (a.ho_ten || '').toLowerCase().includes(searchText.toLowerCase()))
+    : awards;
 
   const loadUnits = async () => { try { setUnits(await getUnits()); } catch { /* */ } };
   const loadStudents = async (unit_id?: number) => {
@@ -135,6 +139,11 @@ const AwardsPage: React.FC = () => {
         <Space wrap>
           <Cascader options={buildCascaderOptions()} onChange={handleFilterUnit}
             placeholder="Lọc theo đơn vị" changeOnSelect allowClear style={{ width: 300 }} />
+          <Input.Search
+            placeholder="Tìm họ tên..." value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
+            style={{ width: 220 }} allowClear enterButton={<SearchOutlined />}
+          />
           <Button icon={<CopyOutlined />} onClick={handleCopy}>Copy bảng</Button>
           {isAdmin && (
             <Button type="primary" icon={<PlusOutlined />} onClick={() => { form.resetFields(); setModalOpen(true); }}>Thêm / Sửa</Button>
@@ -156,7 +165,7 @@ const AwardsPage: React.FC = () => {
       </Card>
 
       <Card styles={{ body: { padding: 0 } }}>
-        <Table columns={columns} dataSource={awards} rowKey="id" loading={loading} size="middle"
+        <Table columns={columns} dataSource={displayAwards} rowKey="id" loading={loading} size="middle"
           scroll={{ x: 900 }} pagination={false} bordered />
       </Card>
 

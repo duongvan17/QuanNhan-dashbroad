@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ConfigProvider, Layout, Menu, theme, Typography, Avatar, App as AntdApp,
-  Spin, Dropdown, Tag, Button, Alert, Modal, Form, Input,
+  Spin, Dropdown, Tag, Button, Alert, Modal, Form, Input, Badge, Space, Tooltip,
 } from 'antd';
 import {
   HomeOutlined,
@@ -17,7 +17,9 @@ import {
   LogoutOutlined,
   KeyOutlined,
   DownOutlined,
+  FlagOutlined,
 } from '@ant-design/icons';
+import { countUnofficialParty } from './services/api';
 import viVN from 'antd/locale/vi_VN';
 import DashboardPage from './pages/DashboardPage';
 import StudentsPage from './pages/StudentsPage';
@@ -28,6 +30,7 @@ import AbsencesPage from './pages/AbsencesPage';
 import ViolationsPage from './pages/ViolationsPage';
 import AwardsPage from './pages/AwardsPage';
 import ExcelPage from './pages/ExcelPage';
+import PartyMembersPage from './pages/PartyMembersPage';
 import UsersPage from './pages/UsersPage';
 import LoginPage from './pages/LoginPage';
 import ForceChangePassword from './pages/ForceChangePassword';
@@ -38,7 +41,7 @@ const { Title } = Typography;
 
 type PageKey =
   | 'dashboard' | 'students' | 'units' | 'academic' | 'discipline'
-  | 'absences' | 'violations' | 'awards' | 'excel' | 'users';
+  | 'absences' | 'violations' | 'awards' | 'party' | 'excel' | 'users';
 
 const themeConfig = {
   algorithm: theme.defaultAlgorithm,
@@ -124,6 +127,16 @@ const MainLayout: React.FC = () => {
   const [currentPage, setCurrentPage] = useState<PageKey>('dashboard');
   const [collapsed, setCollapsed] = useState(false);
   const [pwOpen, setPwOpen] = useState(false);
+  const [unofficialCount, setUnofficialCount] = useState(0);
+
+  useEffect(() => {
+    let stop = false;
+    const load = () => countUnofficialParty()
+      .then((r) => { if (!stop) setUnofficialCount(r.count); })
+      .catch(() => { /* ignore */ });
+    load();
+    // Refresh khi quay lại trang đảng viên (admin có thể vừa thêm/duyệt)
+  }, [currentPage]);
 
   const menuItems = [
     { key: 'dashboard', icon: <HomeOutlined />, label: 'Tổng quan' },
@@ -135,6 +148,7 @@ const MainLayout: React.FC = () => {
     { key: 'absences', icon: <CalendarOutlined />, label: 'Công vắng' },
     { key: 'violations', icon: <WarningOutlined />, label: 'Vi phạm' },
     { key: 'awards', icon: <TrophyOutlined />, label: 'Thi đua khen thưởng' },
+    { key: 'party', icon: <FlagOutlined />, label: 'Theo dõi Đảng viên' },
     { type: 'divider' as const },
     { key: 'excel', icon: <FileExcelOutlined />, label: 'Excel Import/Export' },
     ...(isAdmin ? [{ key: 'users', icon: <TeamOutlined />, label: 'Quản lý tài khoản' }] : []),
@@ -150,6 +164,7 @@ const MainLayout: React.FC = () => {
       case 'absences': return <AbsencesPage />;
       case 'violations': return <ViolationsPage />;
       case 'awards': return <AwardsPage />;
+      case 'party': return <PartyMembersPage />;
       case 'excel': return <ExcelPage />;
       case 'users': return isAdmin ? <UsersPage /> : <DashboardPage />;
       default: return <DashboardPage />;
@@ -193,7 +208,22 @@ const MainLayout: React.FC = () => {
             {currentLabel?.label || 'Tổng quan'}
           </Title>
 
-          <Dropdown
+          <Space size={12}>
+            {unofficialCount > 0 && (
+              <Tooltip title="Bấm để xem danh sách">
+                <Badge count={unofficialCount} offset={[-4, 4]}>
+                  <Button
+                    icon={<FlagOutlined />}
+                    onClick={() => setCurrentPage('party')}
+                    style={{ background: '#fff7e6', borderColor: '#ffd591', color: '#d46b08' }}
+                  >
+                    Còn đảng viên chưa chính thức
+                  </Button>
+                </Badge>
+              </Tooltip>
+            )}
+
+            <Dropdown
             menu={{
               items: [
                 { key: 'pw', icon: <KeyOutlined />, label: 'Đổi mật khẩu', onClick: () => setPwOpen(true) },
@@ -211,6 +241,7 @@ const MainLayout: React.FC = () => {
               <DownOutlined style={{ fontSize: 11 }} />
             </Button>
           </Dropdown>
+          </Space>
         </Header>
 
         <Content style={{ margin: 20, padding: 28, background: '#f5f5f5', flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>

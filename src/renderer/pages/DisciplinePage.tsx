@@ -1,9 +1,9 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
-  Card, Table, Button, Modal, Form, InputNumber, Select, Space, Typography,
+  Card, Table, Button, Modal, Form, Input, InputNumber, Select, Space, Typography,
   Cascader, App, Tag, Popconfirm,
 } from 'antd';
-import { PlusOutlined, StarOutlined, CopyOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
+import { PlusOutlined, StarOutlined, CopyOutlined, EditOutlined, DeleteOutlined, SearchOutlined } from '@ant-design/icons';
 import { getDisciplineScores, saveDisciplineScores, deleteDisciplineScore, getStudents, getUnits } from '../services/api';
 import { useAuth } from '../auth/AuthContext';
 import type { Unit } from '../../shared/types';
@@ -21,6 +21,10 @@ const DisciplinePage: React.FC = () => {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [filters, setFilters] = useState<any>({ nam_hoc: 1, thang: 1 });
   const [form] = Form.useForm();
+  const [searchText, setSearchText] = useState('');
+  const displayScores = searchText
+    ? scores.filter((s) => (s.ho_ten || '').toLowerCase().includes(searchText.toLowerCase()))
+    : scores;
 
   const loadUnits = async () => { try { setUnits(await getUnits()); } catch { /* */ } };
   const loadStudents = async (unit_id?: number) => {
@@ -138,6 +142,11 @@ const DisciplinePage: React.FC = () => {
               <Select.Option key={i + 1} value={i + 1}>Tháng {String(i + 1).padStart(2, '0')}</Select.Option>
             ))}
           </Select>
+          <Input.Search
+            placeholder="Tìm họ tên..." value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
+            style={{ width: 220 }} allowClear enterButton={<SearchOutlined />}
+          />
           <Button icon={<CopyOutlined />} onClick={handleCopy}>Copy bảng</Button>
           {isAdmin && (
             <Button type="primary" icon={<PlusOutlined />} onClick={() => { setEditingId(null); form.resetFields(); setModalOpen(true); }}>Thêm điểm</Button>
@@ -146,19 +155,19 @@ const DisciplinePage: React.FC = () => {
       </Space>
 
       <Card styles={{ body: { padding: 0 } }}>
-        <Table columns={columns} dataSource={scores} rowKey="id" loading={loading} size="middle"
+        <Table columns={columns} dataSource={displayScores} rowKey="id" loading={loading} size="middle"
           scroll={{ x: 900 }} pagination={false} bordered />
       </Card>
 
-      {scores.length > 0 && (
+      {displayScores.length > 0 && (
         <Card size="small" style={{ marginTop: 16 }}>
           <Space size={24}>
-            <span>Tổng: <strong>{scores.length}</strong> học viên</span>
+            <span>Tổng: <strong>{displayScores.length}</strong> học viên</span>
             <span>
-              Giỏi: <Tag color="green">{scores.filter(s => s.xep_loai === 'Giỏi').length}</Tag>
-              Khá: <Tag color="blue">{scores.filter(s => s.xep_loai === 'Khá').length}</Tag>
-              TB: <Tag color="orange">{scores.filter(s => s.xep_loai === 'Trung bình').length}</Tag>
-              Yếu: <Tag color="red">{scores.filter(s => s.xep_loai === 'Yếu').length}</Tag>
+              Giỏi: <Tag color="green">{displayScores.filter(s => s.xep_loai === 'Giỏi').length}</Tag>
+              Khá: <Tag color="blue">{displayScores.filter(s => s.xep_loai === 'Khá').length}</Tag>
+              TB: <Tag color="orange">{displayScores.filter(s => s.xep_loai === 'Trung bình').length}</Tag>
+              Yếu: <Tag color="red">{displayScores.filter(s => s.xep_loai === 'Yếu').length}</Tag>
             </span>
           </Space>
         </Card>

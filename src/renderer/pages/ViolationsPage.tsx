@@ -3,7 +3,7 @@ import {
   Card, Table, Button, Modal, Form, Select, DatePicker, Input, Space, Typography,
   Cascader, App, Popconfirm, Tag, Row, Col, Statistic,
 } from 'antd';
-import { PlusOutlined, DeleteOutlined, WarningOutlined, CopyOutlined } from '@ant-design/icons';
+import { PlusOutlined, DeleteOutlined, WarningOutlined, CopyOutlined, SearchOutlined } from '@ant-design/icons';
 import { getViolations, createViolation, deleteViolation, getStudents, getUnits } from '../services/api';
 import { useAuth } from '../auth/AuthContext';
 import type { Unit } from '../../shared/types';
@@ -27,6 +27,7 @@ const ViolationsPage: React.FC = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [filters, setFilters] = useState<any>({});
   const [form] = Form.useForm();
+  const [searchText, setSearchText] = useState('');
 
   const loadUnits = async () => { try { setUnits(await getUnits()); } catch { /* */ } };
   const loadStudents = async (unit_id?: number) => {
@@ -100,6 +101,9 @@ const ViolationsPage: React.FC = () => {
   };
 
   const grouped = groupByStudent();
+  const displayGrouped = searchText
+    ? grouped.filter((g) => g.ho_ten.toLowerCase().includes(searchText.toLowerCase()))
+    : grouped;
   const countByType = (type: string) => violations.filter((v) => v.loai === type).length;
 
   const columns = [
@@ -155,6 +159,11 @@ const ViolationsPage: React.FC = () => {
         <Space wrap>
           <Cascader options={buildCascaderOptions()} onChange={handleFilterUnit}
             placeholder="Lọc theo đơn vị" changeOnSelect allowClear style={{ width: 300 }} />
+          <Input.Search
+            placeholder="Tìm họ tên..." value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
+            style={{ width: 220 }} allowClear enterButton={<SearchOutlined />}
+          />
           <Button icon={<CopyOutlined />} onClick={handleCopy}>Copy bảng</Button>
           {isAdmin && (
             <Button type="primary" icon={<PlusOutlined />} onClick={() => { form.resetFields(); setModalOpen(true); }}>Thêm vi phạm</Button>
@@ -175,7 +184,7 @@ const ViolationsPage: React.FC = () => {
       </Row>
 
       <Card styles={{ body: { padding: 0 } }}>
-        <Table columns={columns} dataSource={grouped} rowKey="key" loading={loading} size="middle"
+        <Table columns={columns} dataSource={displayGrouped} rowKey="key" loading={loading} size="middle"
           bordered pagination={false}
           expandable={{ expandedRowRender, rowExpandable: (r) => r.tong > 0 }} />
       </Card>
