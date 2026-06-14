@@ -13,6 +13,7 @@ import {
 } from '../services/api';
 import { useAuth } from '../auth/AuthContext';
 import type { Unit } from '../../shared/types';
+import dayjs from 'dayjs';
 
 const { Title, Text } = Typography;
 const { Dragger } = Upload;
@@ -57,15 +58,15 @@ const templates = [
   {
     key: 'students',
     title: 'Thông tin Học viên',
-    desc: 'Họ tên, hình ảnh, ngày sinh, CCCD, cấp bậc, quê quán, thông tin bố mẹ',
+    desc: 'Họ tên, hình ảnh, ngày sinh, CCCD, ngày cấp, nơi cấp, BHYT, cấp bậc, quê quán, thông tin bố mẹ',
     color: '#1677ff',
-    headers: ['STT', 'Họ và tên', 'Hình ảnh', 'Ngày sinh', 'CCCD', 'Cấp bậc', 'Chức vụ', 'Quê quán', 'Địa chỉ thường trú',
+    headers: ['STT', 'Họ và tên', 'Hình ảnh', 'Ngày sinh', 'CCCD', 'CCCD Ngày cấp', 'CCCD Nơi cấp', 'BHYT', 'Cấp bậc', 'Chức vụ', 'Quê quán', 'Địa chỉ thường trú',
       'Họ tên bố', 'Nghề nghiệp', 'Ngày sinh', 'Nơi ở hiện nay',
       'Họ tên mẹ', 'Nghề nghiệp', 'Ngày sinh', 'Nơi ở hiện nay'],
     sheetTitle: 'THÔNG TIN HỌC VIÊN',
     sheetName: 'Thông tin học viên',
     sampleRows: [],
-    widths: [6, 20, 10, 12, 14, 10, 10, 14, 18, 16, 14, 12, 16, 16, 14, 12, 16],
+    widths: [6, 20, 10, 12, 14, 15, 18, 14, 10, 10, 14, 18, 16, 14, 12, 16, 16, 14, 12, 16],
   },
   {
     key: 'academic',
@@ -84,12 +85,12 @@ const templates = [
     title: 'Điểm rèn luyện',
     desc: 'Điểm 4 tuần, điểm tháng, xếp loại',
     color: '#faad14',
-    headers: ['STT', 'Họ và tên', 'Cấp bậc', 'Chức vụ', 'Tuần 01', 'Tuần 02', 'Tuần 03', 'Tuần 04', 'Tháng 01', 'Xếp loại'],
+    headers: ['STT', 'Họ và tên', 'Cấp bậc', 'Chức vụ', 'Tuần 01', 'Tuần 02', 'Tuần 03', 'Tuần 04', 'Tuần 05', 'Tháng 01', 'Xếp loại'],
     sheetTitle: 'ĐIỂM RÈN LUYỆN HỌC VIÊN',
     sheetName: 'Điểm rèn luyện',
     extraRows: [['NĂM NHẤT']],
     sampleRows: [],
-    widths: [6, 24, 12, 12, 10, 10, 10, 10, 12, 12],
+    widths: [6, 24, 12, 12, 10, 10, 10, 10, 10, 12, 12],
   },
   {
     key: 'absences',
@@ -397,6 +398,9 @@ const ExcelPage: React.FC = () => {
         if (!nameCol) continue;
         const dobCol = h.find((c) => c.toLowerCase().includes('ngày sinh') || c.toLowerCase().includes('ngày/'));
         const cccdCol = h.find((c) => c.toLowerCase().includes('cccd'));
+        const cccdNgayCapCol = h.find((c) => c.toLowerCase().includes('ngày cấp') || c.toLowerCase().includes('ngay_cap') || c.toLowerCase().includes('ngaycap'));
+        const cccdNoiCapCol = h.find((c) => c.toLowerCase().includes('nơi cấp') || c.toLowerCase().includes('noi_cap') || c.toLowerCase().includes('noicap'));
+        const bhytCol = h.find((c) => c.toLowerCase().includes('bhyt') || c.toLowerCase().includes('bảo hiểm'));
         const capBacCol = h.find((c) => c.toLowerCase().includes('cấp bậc'));
         const chucVuCol = h.find((c) => c.toLowerCase().includes('chức vụ'));
         const queQuanCol = h.find((c) => c.toLowerCase().includes('quê quán'));
@@ -414,6 +418,9 @@ const ExcelPage: React.FC = () => {
               ho_ten: hoTen,
               ngay_sinh: parseDate(row[dobCol!]),
               cccd: str(row[cccdCol!]),
+              cccd_ngay_cap: cccdNgayCapCol ? parseDate(row[cccdNgayCapCol]) : null,
+              cccd_noi_cap: cccdNoiCapCol ? str(row[cccdNoiCapCol]) : null,
+              bhyt: bhytCol ? str(row[bhytCol]) : null,
               cap_bac: str(row[capBacCol!]),
               chuc_vu: str(row[chucVuCol!]),
               que_quan: str(row[queQuanCol!]),
@@ -447,16 +454,18 @@ const ExcelPage: React.FC = () => {
           const sid = findStudentId(hoTen);
           if (!sid) { failed++; continue; }
           try {
-            const t1Col = h.find((c) => c.toLowerCase().includes('tuần 01'));
-            const t2Col = h.find((c) => c.toLowerCase().includes('tuần 02'));
-            const t3Col = h.find((c) => c.toLowerCase().includes('tuần 03'));
-            const t4Col = h.find((c) => c.toLowerCase().includes('tuần 04'));
+            const t1Col = h.find((c) => c.toLowerCase().includes('tuần 01') || c.toLowerCase().includes('tuần 1'));
+            const t2Col = h.find((c) => c.toLowerCase().includes('tuần 02') || c.toLowerCase().includes('tuần 2'));
+            const t3Col = h.find((c) => c.toLowerCase().includes('tuần 03') || c.toLowerCase().includes('tuần 3'));
+            const t4Col = h.find((c) => c.toLowerCase().includes('tuần 04') || c.toLowerCase().includes('tuần 4'));
+            const t5Col = h.find((c) => c.toLowerCase().includes('tuần 05') || c.toLowerCase().includes('tuần 5'));
             await saveDisciplineScores([{
               student_id: sid, nam_hoc: 1, thang: 1,
               tuan_1: row[t1Col!] != null && row[t1Col!] !== '' ? Number(row[t1Col!]) : null,
               tuan_2: row[t2Col!] != null && row[t2Col!] !== '' ? Number(row[t2Col!]) : null,
               tuan_3: row[t3Col!] != null && row[t3Col!] !== '' ? Number(row[t3Col!]) : null,
               tuan_4: row[t4Col!] != null && row[t4Col!] !== '' ? Number(row[t4Col!]) : null,
+              tuan_5: row[t5Col!] != null && row[t5Col!] !== '' ? Number(row[t5Col!]) : null,
             }]);
             sheetOk++; success++;
           } catch { failed++; }
@@ -513,44 +522,80 @@ const ExcelPage: React.FC = () => {
         if (!nameCol) continue;
         let sheetOk = 0;
         let lastStudentName = '';
-        for (const row of sheet.data) {
-          const hoTen = str(row[nameCol]) || lastStudentName;
-          if (!hoTen) continue;
-          if (str(row[nameCol])) lastStudentName = hoTen;
-          const sid = findStudentId(hoTen);
-          if (!sid) continue;
+        
+        const ngayVangCol = h.find((c) => c.toLowerCase().includes('ngày vắng'));
 
-          // Công vắng
-          const cvCol = h.find((c) => c.toLowerCase().includes('công vắng'));
-          const cvVal = str(row[cvCol!]);
-          if (cvVal && cvVal.toLowerCase().includes('ngày')) {
+        if (ngayVangCol) {
+          const monVangCol = h.find((c) => c.toLowerCase().includes('môn vắng') || c.toLowerCase().includes('môn học'));
+          const soTietCol = h.find((c) => c.toLowerCase().includes('tiết vắng') || c.toLowerCase().includes('số tiết'));
+          const tenBaiCol = h.find((c) => c.toLowerCase().includes('tên bài') || c.toLowerCase().includes('bài học'));
+          const giangVienCol = h.find((c) => c.toLowerCase().includes('giảng viên'));
+          const ghiChuThiCol = h.find((c) => c.toLowerCase().includes('thi'));
+          const ghiChuCol = h.find((c) => c.toLowerCase().includes('ghi chú'));
+
+          for (const row of sheet.data) {
+            const hoTen = str(row[nameCol]);
+            if (!hoTen) continue;
+            const sid = findStudentId(hoTen);
+            if (!sid) { failed++; continue; }
+
+            const ngay = parseDate(row[ngayVangCol]);
+            if (!ngay) continue;
+
             try {
-              const dateMatch = cvVal.match(/(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})/);
-              if (dateMatch) {
-                const ngay = `${dateMatch[3]}-${dateMatch[2].padStart(2, '0')}-${dateMatch[1].padStart(2, '0')}`;
-                await createAbsence({ student_id: sid, ngay_vang: ngay });
-                sheetOk++; success++;
-              }
+              await createAbsence({
+                student_id: sid,
+                ngay_vang: ngay,
+                mon_hoc: monVangCol ? str(row[monVangCol]) : null,
+                so_tiet_vang: soTietCol && row[soTietCol] != null && row[soTietCol] !== '' ? Number(row[soTietCol]) : 1,
+                ten_bai: tenBaiCol ? str(row[tenBaiCol]) : null,
+                giang_vien: giangVienCol ? str(row[giangVienCol]) : null,
+                ghi_chu_thi: ghiChuThiCol ? str(row[ghiChuThiCol]) : null,
+                ghi_chu: ghiChuCol ? str(row[ghiChuCol]) : null,
+              });
+              sheetOk++; success++;
             } catch { failed++; }
           }
+        } else {
+          for (const row of sheet.data) {
+            const hoTen = str(row[nameCol]) || lastStudentName;
+            if (!hoTen) continue;
+            if (str(row[nameCol])) lastStudentName = hoTen;
+            const sid = findStudentId(hoTen);
+            if (!sid) continue;
 
-          // Vi phạm: Khiển trách, Cảnh cáo, Kỷ luật
-          const ktCol = h.find((c) => c.toLowerCase().includes('khiển trách'));
-          const ccCol = h.find((c) => c.toLowerCase().includes('cảnh'));
-          const klCol = h.find((c) => c.toLowerCase().includes('kỷ luật'));
-
-          for (const [col, loai] of [[ktCol, 'khien_trach'], [ccCol, 'canh_cao'], [klCol, 'ky_luat']] as const) {
-            const val = str(row[col!]);
-            if (val && val.toLowerCase().includes('ngày')) {
+            // Công vắng
+            const cvCol = h.find((c) => c.toLowerCase().includes('công vắng'));
+            const cvVal = str(row[cvCol!]);
+            if (cvVal && cvVal.toLowerCase().includes('ngày')) {
               try {
-                const dateMatch = val.match(/(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})/);
-                const lyDo = val.replace(/ngày\s*\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{4}/i, '').replace(/[()]/g, '').replace(/lý do:\s*/i, '').trim();
+                const dateMatch = cvVal.match(/(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})/);
                 if (dateMatch) {
                   const ngay = `${dateMatch[3]}-${dateMatch[2].padStart(2, '0')}-${dateMatch[1].padStart(2, '0')}`;
-                  await createViolation({ student_id: sid, loai: loai as string, ngay, ly_do: lyDo || undefined });
+                  await createAbsence({ student_id: sid, ngay_vang: ngay });
                   sheetOk++; success++;
                 }
               } catch { failed++; }
+            }
+
+            // Vi phạm: Khiển trách, Cảnh cáo, Kỷ luật
+            const ktCol = h.find((c) => c.toLowerCase().includes('khiển trách'));
+            const ccCol = h.find((c) => c.toLowerCase().includes('cảnh'));
+            const klCol = h.find((c) => c.toLowerCase().includes('kỷ luật'));
+
+            for (const [col, loai] of [[ktCol, 'khien_trach'], [ccCol, 'canh_cao'], [klCol, 'ky_luat']] as const) {
+              const val = str(row[col!]);
+              if (val && val.toLowerCase().includes('ngày')) {
+                try {
+                  const dateMatch = val.match(/(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})/);
+                  const lyDo = val.replace(/ngày\s*\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{4}/i, '').replace(/[()]/g, '').replace(/lý do:\s*/i, '').trim();
+                  if (dateMatch) {
+                    const ngay = `${dateMatch[3]}-${dateMatch[2].padStart(2, '0')}-${dateMatch[1].padStart(2, '0')}`;
+                    await createViolation({ student_id: sid, loai: loai as string, ngay, ly_do: lyDo || undefined });
+                    sheetOk++; success++;
+                  }
+                } catch { failed++; }
+              }
             }
           }
         }
@@ -568,17 +613,30 @@ const ExcelPage: React.FC = () => {
           if (!hoTen) continue;
           const sid = findStudentId(hoTen);
           if (!sid) { failed++; continue; }
-          const n1Col = h.find((c) => c.toLowerCase().includes('năm nhất'));
-          const n2Col = h.find((c) => c.toLowerCase().includes('năm hai'));
-          const n3Col = h.find((c) => c.toLowerCase().includes('năm ba'));
-          const n4Col = h.find((c) => c.toLowerCase().includes('năm bốn'));
+          const n1Col = h.find((c) => c.toLowerCase().includes('năm nhất') || c.toLowerCase().includes('n1') || c.toLowerCase().includes('điểm n1'));
+          const n2Col = h.find((c) => c.toLowerCase().includes('năm hai') || c.toLowerCase().includes('n2') || c.toLowerCase().includes('điểm n2'));
+          const n3Col = h.find((c) => c.toLowerCase().includes('năm ba') || c.toLowerCase().includes('n3') || c.toLowerCase().includes('điểm n3'));
+          const n4Col = h.find((c) => c.toLowerCase().includes('năm bốn') || c.toLowerCase().includes('n4') || c.toLowerCase().includes('điểm n4'));
+
+          // Khen thưởng
+          const kt1Col = h.find((c) => c.toLowerCase().includes('khen thưởng n1'));
+          const kt2Col = h.find((c) => c.toLowerCase().includes('khen thưởng n2'));
+          const kt3Col = h.find((c) => c.toLowerCase().includes('khen thưởng n3'));
+          const kt4Col = h.find((c) => c.toLowerCase().includes('khen thưởng n4'));
+          const ktTKCol = h.find((c) => c.toLowerCase().includes('khen thưởng tk') || c.toLowerCase().includes('toàn khóa'));
+
           try {
             await saveAward({
               student_id: sid,
-              diem_nam_1: row[n1Col!] != null && row[n1Col!] !== '' ? Number(row[n1Col!]) : null,
-              diem_nam_2: row[n2Col!] != null && row[n2Col!] !== '' ? Number(row[n2Col!]) : null,
-              diem_nam_3: row[n3Col!] != null && row[n3Col!] !== '' ? Number(row[n3Col!]) : null,
-              diem_nam_4: row[n4Col!] != null && row[n4Col!] !== '' ? Number(row[n4Col!]) : null,
+              diem_nam_1: n1Col && row[n1Col] != null && row[n1Col] !== '' ? Number(row[n1Col]) : null,
+              diem_nam_2: n2Col && row[n2Col] != null && row[n2Col] !== '' ? Number(row[n2Col]) : null,
+              diem_nam_3: n3Col && row[n3Col] != null && row[n3Col] !== '' ? Number(row[n3Col]) : null,
+              diem_nam_4: n4Col && row[n4Col] != null && row[n4Col] !== '' ? Number(row[n4Col]) : null,
+              hinh_thuc_nam_1: kt1Col ? str(row[kt1Col]) : null,
+              hinh_thuc_nam_2: kt2Col ? str(row[kt2Col]) : null,
+              hinh_thuc_nam_3: kt3Col ? str(row[kt3Col]) : null,
+              hinh_thuc_nam_4: kt4Col ? str(row[kt4Col]) : null,
+              hinh_thuc_toan_khoa: ktTKCol ? str(row[ktTKCol]) : null,
             });
             sheetOk++; success++;
           } catch { failed++; }
@@ -709,9 +767,35 @@ const ExcelPage: React.FC = () => {
         const res = await getStudents({ unit_id: exportUnitId, pageSize: 10000 });
         const ws = workbook.addWorksheet('Thông tin học viên');
         addSheet(ws, 'TRÍCH NGANG HỌC VIÊN',
-          ['STT', 'Họ và tên', 'Ngày sinh', 'CCCD', 'Cấp bậc', 'Chức vụ', 'Quê quán', 'Địa chỉ thường trú'],
+          [
+            'STT', 'Họ và tên', 'Hình ảnh', 'Ngày sinh', 'CCCD', 'CCCD Ngày cấp', 'CCCD Nơi cấp', 'BHYT',
+            'Cấp bậc', 'Chức vụ', 'Quê quán', 'Địa chỉ thường trú',
+            'Họ tên bố', 'Nghề nghiệp', 'Ngày sinh', 'Nơi ở hiện nay',
+            'Họ tên mẹ', 'Nghề nghiệp', 'Ngày sinh', 'Nơi ở hiện nay'
+          ],
           res.data,
-          (s, i) => [i + 1, s.ho_ten, s.ngay_sinh ? new Date(s.ngay_sinh).toLocaleDateString('vi-VN') : '', s.cccd || '', s.cap_bac || '', s.chuc_vu || '', s.que_quan || '', s.dia_chi_thuong_tru || '']
+          (s, i) => [
+            i + 1,
+            s.ho_ten || '',
+            s.hinh_anh || '',
+            s.ngay_sinh ? dayjs(s.ngay_sinh).format('DD/MM/YYYY') : '',
+            s.cccd || '',
+            s.cccd_ngay_cap ? dayjs(s.cccd_ngay_cap).format('DD/MM/YYYY') : '',
+            s.cccd_noi_cap || '',
+            s.bhyt || '',
+            s.cap_bac || '',
+            s.chuc_vu || '',
+            s.que_quan || '',
+            s.dia_chi_thuong_tru || '',
+            s.bo_ho_ten || '',
+            s.bo_nghe_nghiep || '',
+            s.bo_ngay_sinh ? dayjs(s.bo_ngay_sinh).format('DD/MM/YYYY') : '',
+            s.bo_noi_o || '',
+            s.me_ho_ten || '',
+            s.me_nghe_nghiep || '',
+            s.me_ngay_sinh ? dayjs(s.me_ngay_sinh).format('DD/MM/YYYY') : '',
+            s.me_noi_o || ''
+          ]
         );
       }
 
@@ -725,22 +809,52 @@ const ExcelPage: React.FC = () => {
       if (exportType === 'discipline' || exportType === 'all') {
         const data = await getDisciplineScores({ unit_id: exportUnitId });
         const ws = workbook.addWorksheet('Điểm rèn luyện');
-        addSheet(ws, 'ĐIỂM RÈN LUYỆN HỌC VIÊN', ['STT', 'Họ và tên', 'Tuần 01', 'Tuần 02', 'Tuần 03', 'Tuần 04', 'Điểm tháng', 'Xếp loại'], data,
-          (s, i) => [i + 1, s.ho_ten, s.tuan_1, s.tuan_2, s.tuan_3, s.tuan_4, s.diem_thang, s.xep_loai]);
+        addSheet(ws, 'ĐIỂM RÈN LUYỆN HỌC VIÊN', ['STT', 'Họ và tên', 'Tuần 01', 'Tuần 02', 'Tuần 03', 'Tuần 04', 'Tuần 05', 'Điểm tháng', 'Xếp loại'], data,
+          (s, i) => [i + 1, s.ho_ten, s.tuan_1, s.tuan_2, s.tuan_3, s.tuan_4, s.tuan_5, s.diem_thang, s.xep_loai]);
       }
 
       if (exportType === 'absences' || exportType === 'all') {
         const data = await getAbsences({ unit_id: exportUnitId });
         const ws = workbook.addWorksheet('Công vắng');
-        addSheet(ws, 'CÔNG VẮNG CỦA HỌC VIÊN', ['STT', 'Họ và tên', 'Ngày vắng', 'Ghi chú'], data,
-          (s, i) => [i + 1, s.ho_ten, new Date(s.ngay_vang).toLocaleDateString('vi-VN'), s.ghi_chu || '']);
+        addSheet(ws, 'CÔNG VẮNG CỦA HỌC VIÊN', 
+          ['STT', 'Họ và tên', 'Ngày vắng', 'Môn vắng', 'Số tiết vắng', 'Tên bài', 'Giảng viên', 'Ghi chú thi', 'Ghi chú'], 
+          data,
+          (s, i) => [
+            i + 1, 
+            s.ho_ten, 
+            s.ngay_vang ? dayjs(s.ngay_vang).format('DD/MM/YYYY') : '', 
+            s.mon_hoc || '', 
+            s.so_tiet_vang ?? '', 
+            s.ten_bai || '', 
+            s.giang_vien || '', 
+            s.ghi_chu_thi || '', 
+            s.ghi_chu || ''
+          ]
+        );
       }
 
       if (exportType === 'awards' || exportType === 'all') {
         const data = await getAwards({ unit_id: exportUnitId });
         const ws = workbook.addWorksheet('Thi đua khen thưởng');
-        addSheet(ws, 'XÉT LOẠI THI ĐUA KHEN THƯỞNG', ['STT', 'Họ và tên', 'Năm nhất', 'Năm hai', 'Năm ba', 'Năm bốn', 'Tổng kết', 'Xếp loại'], data,
-          (s, i) => [i + 1, s.ho_ten, s.diem_nam_1, s.diem_nam_2, s.diem_nam_3, s.diem_nam_4, s.tong_ket, s.xep_loai]);
+        addSheet(ws, 'XÉT LOẠI THI ĐUA KHEN THƯỞNG', 
+          ['STT', 'Họ và tên', 'Điểm N1', 'Khen thưởng N1', 'Điểm N2', 'Khen thưởng N2', 'Điểm N3', 'Khen thưởng N3', 'Điểm N4', 'Khen thưởng N4', 'Tổng kết', 'Xếp loại', 'Khen thưởng TK'], 
+          data,
+          (s, i) => [
+            i + 1, 
+            s.ho_ten, 
+            s.diem_nam_1 ?? '', 
+            s.hinh_thuc_nam_1 || '', 
+            s.diem_nam_2 ?? '', 
+            s.hinh_thuc_nam_2 || '', 
+            s.diem_nam_3 ?? '', 
+            s.hinh_thuc_nam_3 || '', 
+            s.diem_nam_4 ?? '', 
+            s.hinh_thuc_nam_4 || '', 
+            s.tong_ket ?? '', 
+            s.xep_loai || '', 
+            s.hinh_thuc_toan_khoa || ''
+          ]
+        );
       }
 
       await downloadWorkbook(workbook, `quan_nhan_${exportType}_${new Date().toISOString().slice(0, 10)}.xlsx`);

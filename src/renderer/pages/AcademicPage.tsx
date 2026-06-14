@@ -1,14 +1,91 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   Card, Table, Button, Modal, Form, Input, InputNumber, Select, Space, Typography,
-  Cascader, App, Tag, Popconfirm,
+  Cascader, App, Tag, Popconfirm, Tabs, Radio, Tooltip
 } from 'antd';
-import { PlusOutlined, BookOutlined, CopyOutlined, DeleteOutlined, SearchOutlined } from '@ant-design/icons';
+import { PlusOutlined, BookOutlined, CopyOutlined, DeleteOutlined, SearchOutlined, TrophyOutlined } from '@ant-design/icons';
 import { getAcademicScores, saveAcademicScores, deleteAcademicScore, getStudents, getUnits } from '../services/api';
 import { useAuth } from '../auth/AuthContext';
 import type { Unit } from '../../shared/types';
 
 const { Title } = Typography;
+
+const InlineScoreInput = ({ initialValue, studentId, subject, defaultCredit, scoreObj, filters, onSave }: any) => {
+  const { message } = App.useApp();
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState<number | null>(initialValue);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => { setValue(initialValue); }, [initialValue]);
+
+  const save = async () => {
+    if (value === initialValue) {
+      setEditing(false);
+      return;
+    }
+    setLoading(true);
+    try {
+      if (value == null) {
+        if (scoreObj?.id) {
+          await deleteAcademicScore(scoreObj.id);
+        }
+      } else {
+        await saveAcademicScores([{
+          id: scoreObj?.id,
+          student_id: studentId,
+          nam_hoc: filters.nam_hoc,
+          hoc_ky: filters.hoc_ky,
+          mon_hoc: subject,
+          tin_chi: scoreObj?.tin_chi || defaultCredit || 1,
+          diem: value,
+        }]);
+      }
+      setEditing(false);
+      onSave();
+    } catch (err: any) {
+      message.error('Lỗi: ' + err.message);
+      setValue(initialValue);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (editing) {
+    return (
+      <InputNumber
+        autoFocus
+        min={0} max={10} step={0.1}
+        value={value}
+        onChange={(v) => setValue(v)}
+        onBlur={save}
+        onPressEnter={save}
+        disabled={loading}
+        size="small"
+        style={{ width: 65, textAlign: 'center' }}
+      />
+    );
+  }
+
+  return (
+    <div 
+      onClick={() => setEditing(true)} 
+      style={{ 
+        cursor: 'pointer', 
+        minHeight: 24, 
+        color: initialValue == null ? '#ccc' : initialValue >= 8 ? '#52c41a' : initialValue >= 5 ? '#1677ff' : '#ff4d4f', 
+        fontWeight: 600, 
+        fontSize: 15,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '4px 0'
+      }}
+      title="Nhấn để nhập/sửa điểm"
+    >
+      {initialValue != null ? initialValue : '-'}
+    </div>
+  );
+};
 
 const AcademicPage: React.FC = () => {
   const { message } = App.useApp();
@@ -24,6 +101,147 @@ const AcademicPage: React.FC = () => {
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editingScore, setEditingScore] = useState<any>(null);
   const [searchText, setSearchText] = useState('');
+  const [rankOpen, setRankOpen] = useState(false);
+
+  // Rankings variables
+  const [rankTab, setRankTab] = useState<'semester' | 'course'>('semester');
+  const [rankSearchText, setRankSearchText] = useState('');
+  const [allTimeScores, setAllTimeScores] = useState<any[]>([]);
+  const [rankingLoading, setRankingLoading] = useState(false);
+
+  const loadAllTimeScores = async () => {
+    setRankingLoading(true);
+    try {
+      const data = await getAcademicScores({});
+      setAllTimeScores(data);
+    } catch (err: any) {
+      message.error('Lỗi tải dữ liệu bảng xếp hạng: ' + err.message);
+    } finally {
+      setRankingLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (rankOpen) {
+      loadAllTimeScores();
+    }
+  }, [rankOpen]);
+
+  const getSemesterLabel = (namHoc: number, hocKy: number) => {
+    const romanMap: Record<number, string[]> = {
+      1: ['I', 'II'],
+      2: ['III', 'IV'],
+      3: ['V', 'VI'],
+      4: ['VII', 'VIII']
+    };
+    return `Học kỳ ${romanMap[namHoc]?.[hocKy - 1] || hocKy}`;
+  };
+
+  const getStaticSTT = (studentId: number, studentUnitId: number) => {
+    const platoonStudents = students.filter(s => s.unit_id === studentUnitId);
+    if (platoonStudents.length === 0) return '-';
+    // Sắp xếp học viên theo alphabet của họ tên tiếng Việt
+    const sorted = [...platoonStudents].sort((a, b) => (a.ho_ten || '').localeCompare(b.ho_ten || '', 'vi'));
+    const idx = sorted.findIndex(s => s.id === studentId);
+    return idx !== -1 ? idx + 1 : '-';
+  };
+
+  const getRankData = () => {
+    if (allTimeScores.length === 0) return [];
+
+    let dataset: any[] = [];
+    if (rankTab === 'semester') {
+      dataset = allTimeScores.filter(s => s.nam_hoc === filters.nam_hoc && s.hoc_ky === filters.hoc_ky);
+    } else {
+      dataset = allTimeScores;
+    }
+
+    const studentMap = new Map<number, { student_id: number; ho_ten: string; unit_id: number; totalWeighted: number; totalCredits: number }>();
+    dataset.forEach((s) => {
+      if (!studentMap.has(s.student_id)) {
+        studentMap.set(s.student_id, {
+          student_id: s.student_id,
+          ho_ten: s.ho_ten,
+          unit_id: s.unit_id,
+          totalWeighted: 0,
+          totalCredits: 0
+        });
+      }
+      const entry = studentMap.get(s.student_id)!;
+      entry.totalWeighted += s.diem * (s.tin_chi || 1);
+      entry.totalCredits += (s.tin_chi || 1);
+    });
+
+    const list = Array.from(studentMap.values()).map((entry) => {
+      const gpa = entry.totalCredits > 0 ? Math.round((entry.totalWeighted / entry.totalCredits) * 100) / 100 : null;
+      let xep_loai = '-';
+      if (gpa != null) {
+        if (gpa >= 8) xep_loai = 'Giỏi';
+        else if (gpa >= 7.2) xep_loai = 'Khá';
+        else if (gpa >= 5) xep_loai = 'Trung bình';
+        else xep_loai = 'Yếu';
+      }
+      return {
+        student_id: entry.student_id,
+        ho_ten: entry.ho_ten,
+        unit_id: entry.unit_id,
+        gpa,
+        xep_loai
+      };
+    }).filter(x => x.gpa !== null);
+
+    const sorted = list.sort((a, b) => (b.gpa ?? 0) - (a.gpa ?? 0));
+
+    const getUnitHierarchy = (uid: number) => {
+      const platoon = units.find(u => u.id === uid);
+      const company = platoon ? units.find(u => u.id === platoon.parent_id) : null;
+      const battalion = company ? units.find(u => u.id === company.parent_id) : null;
+      return {
+        platoonId: uid,
+        platoonName: platoon?.name || '',
+        companyId: company?.id || null,
+        companyName: company?.name || '',
+        battalionId: battalion?.id || null,
+        battalionName: battalion?.name || ''
+      };
+    };
+
+    const ranked = sorted.map((item, index, arr) => {
+      const h = getUnitHierarchy(item.unit_id);
+      
+      const platoonList = arr.filter(x => x.unit_id === item.unit_id);
+      const platoonRank = platoonList.findIndex(x => x.student_id === item.student_id) + 1;
+
+      const companyList = arr.filter(x => {
+        const xh = getUnitHierarchy(x.unit_id);
+        return xh.companyId === h.companyId && h.companyId !== null;
+      });
+      const companyRank = companyList.findIndex(x => x.student_id === item.student_id) + 1;
+
+      const battalionList = arr.filter(x => {
+        const xh = getUnitHierarchy(x.unit_id);
+        return xh.battalionId === h.battalionId && h.battalionId !== null;
+      });
+      const battalionRank = battalionList.findIndex(x => x.student_id === item.student_id) + 1;
+
+      const unitStr = [h.companyName, h.platoonName].filter(Boolean).join(' > ');
+
+      return {
+        ...item,
+        key: item.student_id,
+        rankOverall: index + 1,
+        rankPlatoon: platoonRank,
+        rankCompany: companyRank,
+        rankBattalion: battalionRank,
+        unitStr
+      };
+    });
+
+    if (rankSearchText) {
+      return ranked.filter(r => (r.ho_ten || '').toLowerCase().includes(rankSearchText.toLowerCase()));
+    }
+    return ranked;
+  };
 
   const loadUnits = async () => {
     try { setUnits(await getUnits()); } catch { /* */ }
@@ -48,7 +266,7 @@ const AcademicPage: React.FC = () => {
     }
   }, [filters]);
 
-  useEffect(() => { loadUnits(); }, []);
+  useEffect(() => { loadUnits(); loadStudents(); }, []);
   useEffect(() => { loadScores(); }, [loadScores]);
 
   const buildCascaderOptions = () => {
@@ -256,10 +474,15 @@ const AcademicPage: React.FC = () => {
       align: 'center' as const,
       render: (v: number | null, record: any) => (
         isAdmin ? (
-          <a onClick={() => handleEditScore(record.student_id, record.ho_ten, sub, getScoreObj(record.student_id, sub))}
-            style={{ color: v == null ? '#ccc' : v >= 8 ? '#52c41a' : v >= 5 ? '#1677ff' : '#ff4d4f', fontWeight: 600, fontSize: 15 }}>
-            {v != null ? v : '-'}
-          </a>
+          <InlineScoreInput
+            initialValue={v}
+            studentId={record.student_id}
+            subject={sub}
+            defaultCredit={subjectCredit[sub]}
+            scoreObj={getScoreObj(record.student_id, sub)}
+            filters={filters}
+            onSave={loadScores}
+          />
         ) : (
           <span style={{ color: v == null ? '#ccc' : v >= 8 ? '#52c41a' : v >= 5 ? '#1677ff' : '#ff4d4f', fontWeight: 600, fontSize: 15 }}>
             {v != null ? v : '-'}
@@ -294,7 +517,7 @@ const AcademicPage: React.FC = () => {
         <Space wrap>
           <Cascader options={buildCascaderOptions()} onChange={handleFilterUnit}
             placeholder="Lọc theo đơn vị" changeOnSelect allowClear style={{ width: 300 }} />
-          <Select value={filters.nam_hoc} onChange={(v) => setFilters((p: any) => ({ ...p, nam_hoc: v }))}
+          <Select value={filters.nam_hoc} onChange={(v) => setFilters((p: any) => ({ ...p, nam_hoc: v, hoc_ky: 1 }))}
             style={{ width: 140 }}>
             <Select.Option value={1}>Năm nhất</Select.Option>
             <Select.Option value={2}>Năm hai</Select.Option>
@@ -303,14 +526,15 @@ const AcademicPage: React.FC = () => {
           </Select>
           <Select value={filters.hoc_ky} onChange={(v) => setFilters((p: any) => ({ ...p, hoc_ky: v }))}
             style={{ width: 130 }}>
-            <Select.Option value={1}>Học kỳ I</Select.Option>
-            <Select.Option value={2}>Học kỳ II</Select.Option>
+            <Select.Option value={1}>{getSemesterLabel(filters.nam_hoc, 1)}</Select.Option>
+            <Select.Option value={2}>{getSemesterLabel(filters.nam_hoc, 2)}</Select.Option>
           </Select>
           <Input.Search
             placeholder="Tìm họ tên..." value={searchText}
             onChange={(e) => setSearchText(e.target.value)}
             style={{ width: 220 }} allowClear enterButton={<SearchOutlined />}
           />
+          <Button icon={<TrophyOutlined />} onClick={() => setRankOpen(true)}>Bảng xếp hạng</Button>
           <Button icon={<CopyOutlined />} onClick={handleCopy}>Copy bảng</Button>
           {isAdmin && (
             <Button type="primary" icon={<PlusOutlined />} onClick={() => { form.resetFields(); setModalOpen(true); }}>
@@ -397,6 +621,85 @@ const AcademicPage: React.FC = () => {
             </Form.Item>
           </div>
         </Form>
+      </Modal>
+
+      {/* Ranking Modal */}
+      <Modal
+        title={
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingRight: 32 }}>
+            <span style={{ fontSize: 18, fontWeight: 600 }}><TrophyOutlined style={{ color: '#faad14' }} /> Bảng xếp hạng Học tập</span>
+            <Radio.Group value={rankTab} onChange={(e) => setRankTab(e.target.value)} size="small">
+              <Radio.Button value="semester">Học kỳ hiện tại</Radio.Button>
+              <Radio.Button value="course">Toàn khóa</Radio.Button>
+            </Radio.Group>
+          </div>
+        }
+        open={rankOpen}
+        onCancel={() => { setRankOpen(false); setRankSearchText(''); }}
+        footer={null}
+        width={900}
+      >
+        <Input.Search
+          placeholder="Tìm họ tên học viên..."
+          value={rankSearchText}
+          onChange={(e) => setRankSearchText(e.target.value)}
+          style={{ marginBottom: 16 }}
+          allowClear
+          enterButton
+        />
+        <Table
+          dataSource={getRankData()}
+          rowKey="key"
+          loading={rankingLoading}
+          pagination={{ pageSize: 20 }}
+          size="middle"
+          scroll={{ y: 450 }}
+          columns={[
+            {
+              title: 'Hạng',
+              width: 70,
+              align: 'center',
+              render: (_: any, r: any) => (
+                <strong style={{ color: r.rankOverall <= 3 ? '#faad14' : 'inherit' }}>
+                  {r.rankOverall}
+                </strong>
+              )
+            },
+            {
+              title: (
+                <Tooltip title="Số thứ tự cố định theo tên trong trung đội">
+                  STT Tên
+                </Tooltip>
+              ),
+              width: 80,
+              align: 'center',
+              render: (_: any, r: any) => <span style={{ color: '#888' }}>{getStaticSTT(r.student_id, r.unit_id)}</span>
+            },
+            { title: 'Họ và tên', dataIndex: 'ho_ten', fontWeight: 600 },
+            { title: 'Đơn vị', dataIndex: 'unitStr', width: 140 },
+            {
+              title: 'Điểm TB',
+              dataIndex: 'gpa',
+              width: 90,
+              align: 'center',
+              render: (v: number) => (
+                <strong style={{ color: v >= 8 ? '#52c41a' : v >= 7.2 ? '#1677ff' : '#faad14', fontSize: 15 }}>
+                  {v}
+                </strong>
+              )
+            },
+            { title: 'Hạng TĐ', dataIndex: 'rankPlatoon', width: 90, align: 'center' },
+            { title: 'Hạng ĐĐ', dataIndex: 'rankCompany', width: 90, align: 'center' },
+            { title: 'Hạng TĐoàn', dataIndex: 'rankBattalion', width: 100, align: 'center' },
+            {
+              title: 'Xếp loại',
+              dataIndex: 'xep_loai',
+              width: 110,
+              align: 'center',
+              render: (v: string) => getXepLoaiTag(v)
+            },
+          ]}
+        />
       </Modal>
     </div>
   );

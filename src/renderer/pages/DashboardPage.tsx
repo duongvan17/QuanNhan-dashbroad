@@ -8,7 +8,11 @@ import { getUnits, getStudents } from '../services/api';
 
 const { Title, Paragraph } = Typography;
 
-const DashboardPage: React.FC = () => {
+interface DashboardPageProps {
+  onNavigate?: (page: string) => void;
+}
+
+const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
   const [stats, setStats] = useState({
     totalStudents: 0,
     totalTieuDoan: 0,
@@ -45,12 +49,12 @@ const DashboardPage: React.FC = () => {
   ];
 
   const features = [
-    { icon: <UserOutlined style={{ fontSize: 28, color: '#1677ff' }} />, title: 'Quản lý Học viên', desc: 'Thêm, sửa, xóa, tìm kiếm thông tin học viên' },
-    { icon: <BookOutlined style={{ fontSize: 28, color: '#52c41a' }} />, title: 'Điểm học tập', desc: 'Nhập điểm theo môn, tín chỉ, tự tính TB' },
-    { icon: <StarOutlined style={{ fontSize: 28, color: '#faad14' }} />, title: 'Điểm rèn luyện', desc: 'Điểm 4 tuần, tự tính tháng & xếp loại' },
-    { icon: <CalendarOutlined style={{ fontSize: 28, color: '#13c2c2' }} />, title: 'Công vắng', desc: 'Theo dõi ngày vắng, tổng công' },
-    { icon: <WarningOutlined style={{ fontSize: 28, color: '#ff4d4f' }} />, title: 'Vi phạm', desc: 'Khiển trách, cảnh cáo, kỷ luật' },
-    { icon: <TrophyOutlined style={{ fontSize: 28, color: '#eb2f96' }} />, title: 'Thi đua khen thưởng', desc: 'Điểm năm, tổng kết, xếp loại tự động' },
+    { key: 'students', icon: <UserOutlined style={{ fontSize: 28, color: '#1677ff' }} />, title: 'Quản lý Học viên', desc: 'Thêm, sửa, xóa, tìm kiếm thông tin học viên' },
+    { key: 'academic', icon: <BookOutlined style={{ fontSize: 28, color: '#52c41a' }} />, title: 'Điểm học tập', desc: 'Nhập điểm theo môn, tín chỉ, tự tính TB' },
+    { key: 'discipline', icon: <StarOutlined style={{ fontSize: 28, color: '#faad14' }} />, title: 'Điểm rèn luyện', desc: 'Điểm 4 tuần, tự tính tháng & xếp loại' },
+    { key: 'absences', icon: <CalendarOutlined style={{ fontSize: 28, color: '#13c2c2' }} />, title: 'Công vắng', desc: 'Theo dõi ngày vắng, tổng công' },
+    { key: 'violations', icon: <WarningOutlined style={{ fontSize: 28, color: '#ff4d4f' }} />, title: 'Vi phạm', desc: 'Khiển trách, cảnh cáo, kỷ luật' },
+    { key: 'awards', icon: <TrophyOutlined style={{ fontSize: 28, color: '#eb2f96' }} />, title: 'Thi đua khen thưởng', desc: 'Điểm năm, tổng kết, xếp loại tự động' },
   ];
 
   return (
@@ -94,7 +98,7 @@ const DashboardPage: React.FC = () => {
       <Row gutter={[20, 20]}>
         {features.map((f, i) => (
           <Col xs={24} sm={12} lg={8} key={i}>
-            <Card hoverable style={{ borderRadius: 12, height: '100%' }}>
+            <Card hoverable style={{ borderRadius: 12, height: '100%' }} onClick={() => onNavigate && onNavigate(f.key)}>
               <Space align="start" size={16}>
                 <div style={{
                   width: 52, height: 52, borderRadius: 10,

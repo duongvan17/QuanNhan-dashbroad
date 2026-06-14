@@ -160,7 +160,7 @@ export function registerIpcHandlers(): void {
 
   handle(IPC.STUDENTS_CREATE, 'admin', async (_event, data: any) => {
     const fields = [
-      'unit_id', 'ho_ten', 'hinh_anh', 'ngay_sinh', 'cccd', 'cap_bac', 'chuc_vu',
+      'unit_id', 'ho_ten', 'hinh_anh', 'ngay_sinh', 'cccd', 'cccd_ngay_cap', 'cccd_noi_cap', 'bhyt', 'cap_bac', 'chuc_vu',
       'que_quan', 'dia_chi_thuong_tru',
       'bo_ho_ten', 'bo_nghe_nghiep', 'bo_ngay_sinh', 'bo_noi_o',
       'me_ho_ten', 'me_nghe_nghiep', 'me_ngay_sinh', 'me_noi_o',
@@ -176,7 +176,7 @@ export function registerIpcHandlers(): void {
 
   handle(IPC.STUDENTS_UPDATE, 'admin', async (_event, data: any) => {
     const fields = [
-      'unit_id', 'ho_ten', 'hinh_anh', 'ngay_sinh', 'cccd', 'cap_bac', 'chuc_vu',
+      'unit_id', 'ho_ten', 'hinh_anh', 'ngay_sinh', 'cccd', 'cccd_ngay_cap', 'cccd_noi_cap', 'bhyt', 'cap_bac', 'chuc_vu',
       'que_quan', 'dia_chi_thuong_tru',
       'bo_ho_ten', 'bo_nghe_nghiep', 'bo_ngay_sinh', 'bo_noi_o',
       'me_ho_ten', 'me_nghe_nghiep', 'me_ngay_sinh', 'me_noi_o',
@@ -195,7 +195,7 @@ export function registerIpcHandlers(): void {
 
   // ============ Academic Scores ============
   handle(IPC.SCORES_ACADEMIC_GET, 'auth', async (_event, filters: { student_id?: number; unit_id?: number; nam_hoc?: number; hoc_ky?: number }) => {
-    let sql = `SELECT a.*, s.ho_ten FROM academic_scores a
+    let sql = `SELECT a.*, s.ho_ten, s.unit_id FROM academic_scores a
                JOIN students s ON a.student_id = s.id WHERE 1=1`;
     const params: any[] = [];
 
@@ -285,7 +285,7 @@ export function registerIpcHandlers(): void {
 
   handle(IPC.SCORES_DISCIPLINE_SAVE, 'admin', async (_event, scores: any[]) => {
     for (const s of scores) {
-      const diem_thang = [s.tuan_1, s.tuan_2, s.tuan_3, s.tuan_4]
+      const diem_thang = [s.tuan_1, s.tuan_2, s.tuan_3, s.tuan_4, s.tuan_5]
         .filter((v: any) => v != null)
         .reduce((sum: number, v: number, _: number, arr: number[]) => sum + v / arr.length, 0) || null;
 
@@ -299,13 +299,13 @@ export function registerIpcHandlers(): void {
 
       if (s.id) {
         await query(
-          'UPDATE discipline_scores SET tuan_1=?, tuan_2=?, tuan_3=?, tuan_4=?, diem_thang=?, xep_loai=? WHERE id=?',
-          [s.tuan_1, s.tuan_2, s.tuan_3, s.tuan_4, diem_thang, xep_loai, s.id]
+          'UPDATE discipline_scores SET tuan_1=?, tuan_2=?, tuan_3=?, tuan_4=?, tuan_5=?, diem_thang=?, xep_loai=? WHERE id=?',
+          [s.tuan_1, s.tuan_2, s.tuan_3, s.tuan_4, s.tuan_5, diem_thang, xep_loai, s.id]
         );
       } else {
         await query(
-          'INSERT INTO discipline_scores (student_id, nam_hoc, thang, tuan_1, tuan_2, tuan_3, tuan_4, diem_thang, xep_loai) VALUES (?,?,?,?,?,?,?,?,?)',
-          [s.student_id, s.nam_hoc, s.thang, s.tuan_1, s.tuan_2, s.tuan_3, s.tuan_4, diem_thang, xep_loai]
+          'INSERT INTO discipline_scores (student_id, nam_hoc, thang, tuan_1, tuan_2, tuan_3, tuan_4, tuan_5, diem_thang, xep_loai) VALUES (?,?,?,?,?,?,?,?,?,?)',
+          [s.student_id, s.nam_hoc, s.thang, s.tuan_1, s.tuan_2, s.tuan_3, s.tuan_4, s.tuan_5, diem_thang, xep_loai]
         );
       }
     }
@@ -318,14 +318,23 @@ export function registerIpcHandlers(): void {
   });
 
   // ============ Absences ============
-  handle(IPC.ABSENCES_GET, 'auth', async (_event, filters: { student_id?: number; unit_id?: number }) => {
-    let sql = `SELECT a.*, s.ho_ten FROM absences a
-               JOIN students s ON a.student_id = s.id WHERE 1=1`;
+  handle(IPC.ABSENCES_GET, 'auth', async (_event, filters: { student_id?: number; unit_id?: number; nam_hoc?: number; hoc_ky?: number }) => {
+    let sql = `SELECT a.*, s.ho_ten, u.name as unit_name FROM absences a
+               JOIN students s ON a.student_id = s.id
+               LEFT JOIN units u ON s.unit_id = u.id WHERE 1=1`;
     const params: any[] = [];
 
     if (filters.student_id) {
       sql += ' AND a.student_id = ?';
       params.push(filters.student_id);
+    }
+    if (filters.nam_hoc) {
+      sql += ' AND a.nam_hoc = ?';
+      params.push(filters.nam_hoc);
+    }
+    if (filters.hoc_ky) {
+      sql += ' AND a.hoc_ky = ?';
+      params.push(filters.hoc_ky);
     }
     if (filters.unit_id) {
       sql += ` AND s.unit_id IN (
@@ -343,12 +352,34 @@ export function registerIpcHandlers(): void {
     return query(sql, params);
   });
 
-  handle(IPC.ABSENCES_CREATE, 'admin', async (_event, data: { student_id: number; ngay_vang: string; ghi_chu?: string }) => {
+  handle(IPC.ABSENCES_CREATE, 'admin', async (_event, data: any) => {
     const result = await query<any>(
-      'INSERT INTO absences (student_id, ngay_vang, ghi_chu) VALUES (?,?,?)',
-      [data.student_id, data.ngay_vang, data.ghi_chu || null]
+      'INSERT INTO absences (student_id, ngay_vang, mon_hoc, so_tiet_vang, ten_bai, giang_vien, ghi_chu, ghi_chu_thi, nam_hoc, hoc_ky) VALUES (?,?,?,?,?,?,?,?,?,?)',
+      [
+        data.student_id,
+        data.ngay_vang,
+        data.mon_hoc || null,
+        data.so_tiet_vang ?? 1,
+        data.ten_bai || null,
+        data.giang_vien || null,
+        data.ghi_chu || null,
+        data.ghi_chu_thi || null,
+        data.nam_hoc || null,
+        data.hoc_ky || null
+      ]
     );
     return { id: result.insertId };
+  });
+
+  ipcMain.handle('absences:update-note', async (_event, { id, ghi_chu_thi, ghi_chu }) => {
+    if (ghi_chu_thi !== undefined && ghi_chu !== undefined) {
+      await query('UPDATE absences SET ghi_chu_thi = ?, ghi_chu = ? WHERE id = ?', [ghi_chu_thi, ghi_chu, id]);
+    } else if (ghi_chu_thi !== undefined) {
+      await query('UPDATE absences SET ghi_chu_thi = ? WHERE id = ?', [ghi_chu_thi, id]);
+    } else if (ghi_chu !== undefined) {
+      await query('UPDATE absences SET ghi_chu = ? WHERE id = ?', [ghi_chu, id]);
+    }
+    return { success: true };
   });
 
   handle(IPC.ABSENCES_DELETE, 'admin', async (_event, id: number) => {
@@ -357,14 +388,23 @@ export function registerIpcHandlers(): void {
   });
 
   // ============ Violations ============
-  handle(IPC.VIOLATIONS_GET, 'auth', async (_event, filters: { student_id?: number; unit_id?: number }) => {
-    let sql = `SELECT v.*, s.ho_ten FROM violations v
-               JOIN students s ON v.student_id = s.id WHERE 1=1`;
+  handle(IPC.VIOLATIONS_GET, 'auth', async (_event, filters: { student_id?: number; unit_id?: number; nam_hoc?: number; hoc_ky?: number }) => {
+    let sql = `SELECT v.*, s.ho_ten, u.name as unit_name FROM violations v
+               JOIN students s ON v.student_id = s.id
+               LEFT JOIN units u ON s.unit_id = u.id WHERE 1=1`;
     const params: any[] = [];
 
     if (filters.student_id) {
       sql += ' AND v.student_id = ?';
       params.push(filters.student_id);
+    }
+    if (filters.nam_hoc) {
+      sql += ' AND v.nam_hoc = ?';
+      params.push(filters.nam_hoc);
+    }
+    if (filters.hoc_ky) {
+      sql += ' AND v.hoc_ky = ?';
+      params.push(filters.hoc_ky);
     }
     if (filters.unit_id) {
       sql += ` AND s.unit_id IN (
@@ -382,10 +422,10 @@ export function registerIpcHandlers(): void {
     return query(sql, params);
   });
 
-  handle(IPC.VIOLATIONS_CREATE, 'admin', async (_event, data: { student_id: number; loai: string; ngay: string; ly_do?: string }) => {
+  handle(IPC.VIOLATIONS_CREATE, 'admin', async (_event, data: any) => {
     const result = await query<any>(
-      'INSERT INTO violations (student_id, loai, ngay, ly_do) VALUES (?,?,?,?)',
-      [data.student_id, data.loai, data.ngay, data.ly_do || null]
+      'INSERT INTO violations (student_id, loai, ngay, ly_do, nam_hoc, hoc_ky) VALUES (?,?,?,?,?,?)',
+      [data.student_id, data.loai, data.ngay, data.ly_do || null, data.nam_hoc || null, data.hoc_ky || null]
     );
     return { id: result.insertId };
   });
@@ -397,8 +437,9 @@ export function registerIpcHandlers(): void {
 
   // ============ Awards ============
   handle(IPC.AWARDS_GET, 'auth', async (_event, filters: { student_id?: number; unit_id?: number }) => {
-    let sql = `SELECT aw.*, s.ho_ten FROM awards aw
-               JOIN students s ON aw.student_id = s.id WHERE 1=1`;
+    let sql = `SELECT aw.*, s.ho_ten, u.name as unit_name FROM awards aw
+               JOIN students s ON aw.student_id = s.id
+               LEFT JOIN units u ON s.unit_id = u.id WHERE 1=1`;
     const params: any[] = [];
 
     if (filters.student_id) {
@@ -422,9 +463,9 @@ export function registerIpcHandlers(): void {
   });
 
   handle(IPC.AWARDS_SAVE, 'admin', async (_event, data: any) => {
-    const tong_ket = [data.diem_nam_1, data.diem_nam_2, data.diem_nam_3, data.diem_nam_4]
+    const tong_ket_arr = [data.diem_nam_1, data.diem_nam_2, data.diem_nam_3, data.diem_nam_4]
       .filter((v: any) => v != null);
-    const avg = tong_ket.length > 0 ? tong_ket.reduce((a: number, b: number) => a + b, 0) / tong_ket.length : null;
+    const avg = tong_ket_arr.length > 0 ? tong_ket_arr.reduce((a: number, b: number) => a + b, 0) / tong_ket_arr.length : null;
 
     let xep_loai = null;
     if (avg != null) {
@@ -435,14 +476,70 @@ export function registerIpcHandlers(): void {
 
     // Upsert
     await query(
-      `INSERT INTO awards (student_id, diem_nam_1, diem_nam_2, diem_nam_3, diem_nam_4, tong_ket, xep_loai)
-       VALUES (?,?,?,?,?,?,?)
-       ON DUPLICATE KEY UPDATE diem_nam_1=?, diem_nam_2=?, diem_nam_3=?, diem_nam_4=?, tong_ket=?, xep_loai=?`,
+      `INSERT INTO awards (student_id, diem_nam_1, diem_nam_2, diem_nam_3, diem_nam_4,
+                           hinh_thuc_nam_1, hinh_thuc_nam_2, hinh_thuc_nam_3, hinh_thuc_nam_4, hinh_thuc_toan_khoa,
+                           tong_ket, xep_loai)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+       ON DUPLICATE KEY UPDATE diem_nam_1=?, diem_nam_2=?, diem_nam_3=?, diem_nam_4=?,
+                               hinh_thuc_nam_1=?, hinh_thuc_nam_2=?, hinh_thuc_nam_3=?, hinh_thuc_nam_4=?, hinh_thuc_toan_khoa=?,
+                               tong_ket=?, xep_loai=?`,
       [
-        data.student_id, data.diem_nam_1, data.diem_nam_2, data.diem_nam_3, data.diem_nam_4, avg, xep_loai,
-        data.diem_nam_1, data.diem_nam_2, data.diem_nam_3, data.diem_nam_4, avg, xep_loai,
+        data.student_id, data.diem_nam_1, data.diem_nam_2, data.diem_nam_3, data.diem_nam_4,
+        data.hinh_thuc_nam_1 || null, data.hinh_thuc_nam_2 || null, data.hinh_thuc_nam_3 || null, data.hinh_thuc_nam_4 || null, data.hinh_thuc_toan_khoa || null,
+        avg, xep_loai,
+        
+        data.diem_nam_1, data.diem_nam_2, data.diem_nam_3, data.diem_nam_4,
+        data.hinh_thuc_nam_1 || null, data.hinh_thuc_nam_2 || null, data.hinh_thuc_nam_3 || null, data.hinh_thuc_nam_4 || null, data.hinh_thuc_toan_khoa || null,
+        avg, xep_loai
       ]
     );
+    return { success: true };
+  });
+
+  // ============ Other Awards (Giải thưởng đột xuất) ============
+  handle(IPC.OTHER_AWARDS_GET, 'auth', async (_event, filters: { student_id?: number; unit_id?: number }) => {
+    let sql = `SELECT oa.*, s.ho_ten, u.name as unit_name FROM other_awards oa
+               JOIN students s ON oa.student_id = s.id
+               LEFT JOIN units u ON s.unit_id = u.id WHERE 1=1`;
+    const params: any[] = [];
+    if (filters.student_id) {
+      sql += ' AND oa.student_id = ?';
+      params.push(filters.student_id);
+    }
+    if (filters.unit_id) {
+      sql += ` AND s.unit_id IN (
+        WITH RECURSIVE unit_tree AS (
+          SELECT id FROM units WHERE id = ?
+          UNION ALL
+          SELECT u.id FROM units u JOIN unit_tree ut ON u.parent_id = ut.id
+        )
+        SELECT id FROM unit_tree
+      )`;
+      params.push(filters.unit_id);
+    }
+    sql += ' ORDER BY oa.ngay_khen_thuong DESC';
+    return query(sql, params);
+  });
+
+  handle(IPC.OTHER_AWARDS_SAVE, 'admin', async (_event, data: any) => {
+    if (data.id) {
+      await query(
+        `UPDATE other_awards SET loai_khen_thuong=?, ten_giai_thuong=?, cap_khen_thuong=?, nam_hoc=?, ngay_khen_thuong=?, ghi_chu=?
+         WHERE id=?`,
+        [data.loai_khen_thuong, data.ten_giai_thuong, data.cap_khen_thuong || null, data.nam_hoc || null, data.ngay_khen_thuong || null, data.ghi_chu || null, data.id]
+      );
+    } else {
+      await query(
+        `INSERT INTO other_awards (student_id, loai_khen_thuong, ten_giai_thuong, cap_khen_thuong, nam_hoc, ngay_khen_thuong, ghi_chu)
+         VALUES (?,?,?,?,?,?,?)`,
+        [data.student_id, data.loai_khen_thuong, data.ten_giai_thuong, data.cap_khen_thuong || null, data.nam_hoc || null, data.ngay_khen_thuong || null, data.ghi_chu || null]
+      );
+    }
+    return { success: true };
+  });
+
+  handle(IPC.OTHER_AWARDS_DELETE, 'admin', async (_event, id: number) => {
+    await query('DELETE FROM other_awards WHERE id = ?', [id]);
     return { success: true };
   });
 

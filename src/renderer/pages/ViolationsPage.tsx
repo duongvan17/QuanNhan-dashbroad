@@ -25,7 +25,7 @@ const ViolationsPage: React.FC = () => {
   const [students, setStudents] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
-  const [filters, setFilters] = useState<any>({});
+  const [filters, setFilters] = useState<any>({ nam_hoc: 1, hoc_ky: 1 });
   const [form] = Form.useForm();
   const [searchText, setSearchText] = useState('');
 
@@ -67,6 +67,8 @@ const ViolationsPage: React.FC = () => {
       await createViolation({
         student_id: values.student_id, loai: values.loai,
         ngay: values.ngay.format('YYYY-MM-DD'), ly_do: values.ly_do || undefined,
+        nam_hoc: values.nam_hoc || filters.nam_hoc || 1,
+        hoc_ky: values.hoc_ky || filters.hoc_ky || 1,
       });
       message.success('Đã thêm'); setModalOpen(false); form.resetFields(); loadViolations();
     } catch (err: any) { if (!err.errorFields) message.error('Lỗi: ' + err.message); }
@@ -158,11 +160,22 @@ const ViolationsPage: React.FC = () => {
         <Title level={4} style={{ margin: 0 }}><WarningOutlined /> Vi phạm</Title>
         <Space wrap>
           <Cascader options={buildCascaderOptions()} onChange={handleFilterUnit}
-            placeholder="Lọc theo đơn vị" changeOnSelect allowClear style={{ width: 300 }} />
+            placeholder="Lọc theo đơn vị" changeOnSelect allowClear style={{ width: 250 }} />
+          <Select value={filters.nam_hoc} onChange={(v) => setFilters((p: any) => ({ ...p, nam_hoc: v, hoc_ky: 1 }))} style={{ width: 120 }}>
+            {[1,2,3,4].map(n => <Select.Option key={n} value={n}>Năm {['nhất','hai','ba','bốn'][n-1]}</Select.Option>)}
+          </Select>
+          <Select value={filters.hoc_ky} onChange={(v) => setFilters((p: any) => ({ ...p, hoc_ky: v }))} style={{ width: 130 }}>
+            <Select.Option value={1}>
+              {filters.nam_hoc === 1 ? 'Học kỳ I' : filters.nam_hoc === 2 ? 'Học kỳ III' : filters.nam_hoc === 3 ? 'Học kỳ V' : 'Học kỳ VII'}
+            </Select.Option>
+            <Select.Option value={2}>
+              {filters.nam_hoc === 1 ? 'Học kỳ II' : filters.nam_hoc === 2 ? 'Học kỳ IV' : filters.nam_hoc === 3 ? 'Học kỳ VI' : 'Học kỳ VIII'}
+            </Select.Option>
+          </Select>
           <Input.Search
             placeholder="Tìm họ tên..." value={searchText}
             onChange={(e) => setSearchText(e.target.value)}
-            style={{ width: 220 }} allowClear enterButton={<SearchOutlined />}
+            style={{ width: 180 }} allowClear enterButton={<SearchOutlined />}
           />
           <Button icon={<CopyOutlined />} onClick={handleCopy}>Copy bảng</Button>
           {isAdmin && (
@@ -196,6 +209,21 @@ const ViolationsPage: React.FC = () => {
             <Select placeholder="Chọn" showSearch optionFilterProp="label"
               options={students.map(s => ({ value: s.id, label: s.ho_ten }))} />
           </Form.Item>
+          
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+            <Form.Item name="nam_hoc" label="Năm học" rules={[{ required: true }]} initialValue={filters.nam_hoc || 1}>
+              <Select>
+                {[1,2,3,4].map(n => <Select.Option key={n} value={n}>Năm {['nhất','hai','ba','bốn'][n-1]}</Select.Option>)}
+              </Select>
+            </Form.Item>
+            <Form.Item name="hoc_ky" label="Học kỳ" rules={[{ required: true }]} initialValue={filters.hoc_ky || 1}>
+              <Select>
+                <Select.Option value={1}>Học kỳ lẻ</Select.Option>
+                <Select.Option value={2}>Học kỳ chẵn</Select.Option>
+              </Select>
+            </Form.Item>
+          </div>
+
           <Form.Item name="loai" label="Loại" rules={[{ required: true }]}>
             <Select placeholder="Chọn loại">
               <Select.Option value="khien_trach">Khiển trách</Select.Option>

@@ -18,6 +18,8 @@ import {
   KeyOutlined,
   DownOutlined,
   FlagOutlined,
+  ZoomInOutlined,
+  ZoomOutOutlined,
 } from '@ant-design/icons';
 import { countUnofficialParty } from './services/api';
 import viVN from 'antd/locale/vi_VN';
@@ -127,16 +129,17 @@ const MainLayout: React.FC = () => {
   const [currentPage, setCurrentPage] = useState<PageKey>('dashboard');
   const [collapsed, setCollapsed] = useState(false);
   const [pwOpen, setPwOpen] = useState(false);
-  const [unofficialCount, setUnofficialCount] = useState(0);
+  const [zoomLevel, setZoomLevel] = useState(0);
 
-  useEffect(() => {
-    let stop = false;
-    const load = () => countUnofficialParty()
-      .then((r) => { if (!stop) setUnofficialCount(r.count); })
-      .catch(() => { /* ignore */ });
-    load();
-    // Refresh khi quay lại trang đảng viên (admin có thể vừa thêm/duyệt)
-  }, [currentPage]);
+  const handleZoom = (delta: number) => {
+    const newZoom = Math.max(-4, Math.min(zoomLevel + delta, 5));
+    setZoomLevel(newZoom);
+    if ((window as any).electronAPI?.setZoomLevel) {
+      (window as any).electronAPI.setZoomLevel(newZoom);
+    }
+  };
+
+  // Xoá unofficial party logic
 
   const menuItems = [
     { key: 'dashboard', icon: <HomeOutlined />, label: 'Tổng quan' },
@@ -156,7 +159,7 @@ const MainLayout: React.FC = () => {
 
   const renderPage = () => {
     switch (currentPage) {
-      case 'dashboard': return <DashboardPage />;
+      case 'dashboard': return <DashboardPage onNavigate={(page) => setCurrentPage(page as PageKey)} />;
       case 'students': return <StudentsPage />;
       case 'units': return <UnitsPage />;
       case 'academic': return <AcademicPage />;
@@ -166,8 +169,8 @@ const MainLayout: React.FC = () => {
       case 'awards': return <AwardsPage />;
       case 'party': return <PartyMembersPage />;
       case 'excel': return <ExcelPage />;
-      case 'users': return isAdmin ? <UsersPage /> : <DashboardPage />;
-      default: return <DashboardPage />;
+      case 'users': return isAdmin ? <UsersPage /> : <DashboardPage onNavigate={(page) => setCurrentPage(page as PageKey)} />;
+      default: return <DashboardPage onNavigate={(page) => setCurrentPage(page as PageKey)} />;
     }
   };
 
@@ -209,19 +212,17 @@ const MainLayout: React.FC = () => {
           </Title>
 
           <Space size={12}>
-            {unofficialCount > 0 && (
-              <Tooltip title="Bấm để xem danh sách">
-                <Badge count={unofficialCount} offset={[-4, 4]}>
-                  <Button
-                    icon={<FlagOutlined />}
-                    onClick={() => setCurrentPage('party')}
-                    style={{ background: '#fff7e6', borderColor: '#ffd591', color: '#d46b08' }}
-                  >
-                    Còn đảng viên chưa chính thức
-                  </Button>
-                </Badge>
+            <Space.Compact style={{ marginRight: 16 }}>
+              <Tooltip title="Thu nhỏ">
+                <Button icon={<ZoomOutOutlined />} onClick={() => handleZoom(-0.5)} />
               </Tooltip>
-            )}
+              <Button style={{ width: 64, pointerEvents: 'none', padding: '0 4px', textAlign: 'center' }}>
+                {Math.round(Math.pow(1.2, zoomLevel) * 100)}%
+              </Button>
+              <Tooltip title="Phóng to">
+                <Button icon={<ZoomInOutlined />} onClick={() => handleZoom(0.5)} />
+              </Tooltip>
+            </Space.Compact>
 
             <Dropdown
             menu={{

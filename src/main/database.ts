@@ -166,6 +166,7 @@ export async function initTables(): Promise<void> {
       tuan_2 DECIMAL(4,2) NULL,
       tuan_3 DECIMAL(4,2) NULL,
       tuan_4 DECIMAL(4,2) NULL,
+      tuan_5 DECIMAL(4,2) NULL,
       diem_thang DECIMAL(4,2) NULL,
       xep_loai VARCHAR(50) NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -225,9 +226,52 @@ export async function initTables(): Promise<void> {
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       FOREIGN KEY (unit_id) REFERENCES units(id) ON DELETE SET NULL
     )`,
+
+    `CREATE TABLE IF NOT EXISTS other_awards (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      student_id INT NOT NULL,
+      loai_khen_thuong VARCHAR(255) NOT NULL,
+      ten_giai_thuong VARCHAR(500) NOT NULL,
+      cap_khen_thuong VARCHAR(255) NULL,
+      nam_hoc INT NULL,
+      ngay_khen_thuong DATE NULL,
+      ghi_chu TEXT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE
+    )`,
   ];
 
   for (const sql of statements) {
     await pool.execute(sql);
+  }
+
+  // Auto-migrate tables to add new columns
+  const alters = [
+    'ALTER TABLE students ADD COLUMN cccd_ngay_cap DATE NULL',
+    'ALTER TABLE students ADD COLUMN cccd_noi_cap VARCHAR(255) NULL',
+    'ALTER TABLE students ADD COLUMN bhyt VARCHAR(100) NULL',
+    'ALTER TABLE absences ADD COLUMN mon_hoc VARCHAR(255) NULL',
+    'ALTER TABLE absences ADD COLUMN so_tiet_vang INT DEFAULT 1',
+    'ALTER TABLE absences ADD COLUMN ten_bai VARCHAR(255) NULL',
+    'ALTER TABLE absences ADD COLUMN giang_vien VARCHAR(255) NULL',
+    'ALTER TABLE absences ADD COLUMN ghi_chu_thi VARCHAR(255) NULL',
+    'ALTER TABLE absences ADD COLUMN nam_hoc INT NULL',
+    'ALTER TABLE absences ADD COLUMN hoc_ky INT NULL',
+    'ALTER TABLE violations ADD COLUMN nam_hoc INT NULL',
+    'ALTER TABLE violations ADD COLUMN hoc_ky INT NULL',
+    'ALTER TABLE awards ADD COLUMN hinh_thuc_nam_1 VARCHAR(255) NULL',
+    'ALTER TABLE awards ADD COLUMN hinh_thuc_nam_2 VARCHAR(255) NULL',
+    'ALTER TABLE awards ADD COLUMN hinh_thuc_nam_3 VARCHAR(255) NULL',
+    'ALTER TABLE awards ADD COLUMN hinh_thuc_nam_4 VARCHAR(255) NULL',
+    'ALTER TABLE awards ADD COLUMN hinh_thuc_toan_khoa VARCHAR(255) NULL',
+    'ALTER TABLE discipline_scores ADD COLUMN tuan_5 DECIMAL(4,2) NULL',
+  ];
+
+  for (const sql of alters) {
+    try {
+      await pool.execute(sql);
+    } catch (e: any) {
+      // Ignore if columns already exist
+    }
   }
 }

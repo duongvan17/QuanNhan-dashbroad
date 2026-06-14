@@ -210,7 +210,7 @@ app.get('/api/students', async (req, res) => {
 app.post('/api/students', async (req, res) => {
   try {
     const fields = [
-      'unit_id', 'ho_ten', 'hinh_anh', 'ngay_sinh', 'cccd', 'cap_bac', 'chuc_vu',
+      'unit_id', 'ho_ten', 'hinh_anh', 'ngay_sinh', 'cccd', 'cccd_ngay_cap', 'cccd_noi_cap', 'bhyt', 'cap_bac', 'chuc_vu',
       'que_quan', 'dia_chi_thuong_tru',
       'bo_ho_ten', 'bo_nghe_nghiep', 'bo_ngay_sinh', 'bo_noi_o',
       'me_ho_ten', 'me_nghe_nghiep', 'me_ngay_sinh', 'me_noi_o',
@@ -251,7 +251,7 @@ app.post('/api/students', async (req, res) => {
 app.put('/api/students/:id', async (req, res) => {
   try {
     const fields = [
-      'unit_id', 'ho_ten', 'hinh_anh', 'ngay_sinh', 'cccd', 'cap_bac', 'chuc_vu',
+      'unit_id', 'ho_ten', 'hinh_anh', 'ngay_sinh', 'cccd', 'cccd_ngay_cap', 'cccd_noi_cap', 'bhyt', 'cap_bac', 'chuc_vu',
       'que_quan', 'dia_chi_thuong_tru',
       'bo_ho_ten', 'bo_nghe_nghiep', 'bo_ngay_sinh', 'bo_noi_o',
       'me_ho_ten', 'me_nghe_nghiep', 'me_ngay_sinh', 'me_noi_o',
@@ -279,7 +279,7 @@ app.delete('/api/students/:id', async (req, res) => {
 app.get('/api/academic-scores', async (req, res) => {
   try {
     const { student_id, unit_id, nam_hoc, hoc_ky } = req.query as any;
-    let sql = `SELECT a.*, s.ho_ten FROM academic_scores a
+    let sql = `SELECT a.*, s.ho_ten, s.unit_id FROM academic_scores a
                JOIN students s ON a.student_id = s.id WHERE 1=1`;
     const params: any[] = [];
 
@@ -378,7 +378,7 @@ app.post('/api/discipline-scores', async (req, res) => {
   try {
     const { scores } = req.body;
     for (const s of scores) {
-      const vals = [s.tuan_1, s.tuan_2, s.tuan_3, s.tuan_4].filter((v: any) => v != null);
+      const vals = [s.tuan_1, s.tuan_2, s.tuan_3, s.tuan_4, s.tuan_5].filter((v: any) => v != null);
       const diem_thang = vals.length > 0 ? vals.reduce((a: number, b: number) => a + b, 0) / vals.length : null;
 
       let xep_loai = null;
@@ -390,8 +390,8 @@ app.post('/api/discipline-scores', async (req, res) => {
       }
 
       if (s.id) {
-        await query('UPDATE discipline_scores SET tuan_1=?, tuan_2=?, tuan_3=?, tuan_4=?, diem_thang=?, xep_loai=? WHERE id=?',
-          [s.tuan_1, s.tuan_2, s.tuan_3, s.tuan_4, diem_thang, xep_loai, s.id]);
+        await query('UPDATE discipline_scores SET tuan_1=?, tuan_2=?, tuan_3=?, tuan_4=?, tuan_5=?, diem_thang=?, xep_loai=? WHERE id=?',
+          [s.tuan_1, s.tuan_2, s.tuan_3, s.tuan_4, s.tuan_5, diem_thang, xep_loai, s.id]);
       } else {
         // Check trùng
         const existing = await query<any[]>(
@@ -399,11 +399,11 @@ app.post('/api/discipline-scores', async (req, res) => {
           [s.student_id, s.nam_hoc, s.thang]
         );
         if (existing.length > 0) {
-          await query('UPDATE discipline_scores SET tuan_1=?, tuan_2=?, tuan_3=?, tuan_4=?, diem_thang=?, xep_loai=? WHERE id=?',
-            [s.tuan_1, s.tuan_2, s.tuan_3, s.tuan_4, diem_thang, xep_loai, existing[0].id]);
+          await query('UPDATE discipline_scores SET tuan_1=?, tuan_2=?, tuan_3=?, tuan_4=?, tuan_5=?, diem_thang=?, xep_loai=? WHERE id=?',
+            [s.tuan_1, s.tuan_2, s.tuan_3, s.tuan_4, s.tuan_5, diem_thang, xep_loai, existing[0].id]);
         } else {
-          await query('INSERT INTO discipline_scores (student_id, nam_hoc, thang, tuan_1, tuan_2, tuan_3, tuan_4, diem_thang, xep_loai) VALUES (?,?,?,?,?,?,?,?,?)',
-            [s.student_id, s.nam_hoc, s.thang, s.tuan_1, s.tuan_2, s.tuan_3, s.tuan_4, diem_thang, xep_loai]);
+          await query('INSERT INTO discipline_scores (student_id, nam_hoc, thang, tuan_1, tuan_2, tuan_3, tuan_4, tuan_5, diem_thang, xep_loai) VALUES (?,?,?,?,?,?,?,?,?,?)',
+            [s.student_id, s.nam_hoc, s.thang, s.tuan_1, s.tuan_2, s.tuan_3, s.tuan_4, s.tuan_5, diem_thang, xep_loai]);
         }
       }
     }
@@ -434,12 +434,15 @@ app.delete('/api/awards/:id', async (req, res) => {
 // ============ Absences ============
 app.get('/api/absences', async (req, res) => {
   try {
-    const { student_id, unit_id } = req.query as any;
-    let sql = `SELECT a.*, s.ho_ten FROM absences a
-               JOIN students s ON a.student_id = s.id WHERE 1=1`;
+    const { student_id, unit_id, nam_hoc, hoc_ky } = req.query as any;
+    let sql = `SELECT a.*, s.ho_ten, u.name as unit_name FROM absences a
+               JOIN students s ON a.student_id = s.id
+               LEFT JOIN units u ON s.unit_id = u.id WHERE 1=1`;
     const params: any[] = [];
 
     if (student_id) { sql += ' AND a.student_id = ?'; params.push(Number(student_id)); }
+    if (nam_hoc) { sql += ' AND a.nam_hoc = ?'; params.push(Number(nam_hoc)); }
+    if (hoc_ky) { sql += ' AND a.hoc_ky = ?'; params.push(Number(hoc_ky)); }
     if (unit_id) {
       sql += ` AND s.unit_id IN (
         WITH RECURSIVE unit_tree AS (
@@ -462,12 +465,40 @@ app.get('/api/absences', async (req, res) => {
 
 app.post('/api/absences', async (req, res) => {
   try {
-    const { student_id, ngay_vang, ghi_chu } = req.body;
+    const { student_id, ngay_vang, mon_hoc, so_tiet_vang, ten_bai, giang_vien, ghi_chu, ghi_chu_thi, nam_hoc, hoc_ky } = req.body;
     const result = await query<any>(
-      'INSERT INTO absences (student_id, ngay_vang, ghi_chu) VALUES (?,?,?)',
-      [student_id, ngay_vang, ghi_chu || null]
+      'INSERT INTO absences (student_id, ngay_vang, mon_hoc, so_tiet_vang, ten_bai, giang_vien, ghi_chu, ghi_chu_thi, nam_hoc, hoc_ky) VALUES (?,?,?,?,?,?,?,?,?,?)',
+      [
+        student_id,
+        ngay_vang,
+        mon_hoc || null,
+        so_tiet_vang ?? 1,
+        ten_bai || null,
+        giang_vien || null,
+        ghi_chu || null,
+        ghi_chu_thi || null,
+        nam_hoc || null,
+        hoc_ky || null
+      ]
     );
     res.json({ id: result.insertId });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/absences/:id/note', async (req, res) => {
+  try {
+    const { ghi_chu_thi, ghi_chu } = req.body;
+    const id = Number(req.params.id);
+    if (ghi_chu_thi !== undefined && ghi_chu !== undefined) {
+      await query('UPDATE absences SET ghi_chu_thi = ?, ghi_chu = ? WHERE id = ?', [ghi_chu_thi, ghi_chu, id]);
+    } else if (ghi_chu_thi !== undefined) {
+      await query('UPDATE absences SET ghi_chu_thi = ? WHERE id = ?', [ghi_chu_thi, id]);
+    } else if (ghi_chu !== undefined) {
+      await query('UPDATE absences SET ghi_chu = ? WHERE id = ?', [ghi_chu, id]);
+    }
+    res.json({ success: true });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -485,12 +516,15 @@ app.delete('/api/absences/:id', async (req, res) => {
 // ============ Violations ============
 app.get('/api/violations', async (req, res) => {
   try {
-    const { student_id, unit_id } = req.query as any;
-    let sql = `SELECT v.*, s.ho_ten FROM violations v
-               JOIN students s ON v.student_id = s.id WHERE 1=1`;
+    const { student_id, unit_id, nam_hoc, hoc_ky } = req.query as any;
+    let sql = `SELECT v.*, s.ho_ten, u.name as unit_name FROM violations v
+               JOIN students s ON v.student_id = s.id
+               LEFT JOIN units u ON s.unit_id = u.id WHERE 1=1`;
     const params: any[] = [];
 
     if (student_id) { sql += ' AND v.student_id = ?'; params.push(Number(student_id)); }
+    if (nam_hoc) { sql += ' AND v.nam_hoc = ?'; params.push(Number(nam_hoc)); }
+    if (hoc_ky) { sql += ' AND v.hoc_ky = ?'; params.push(Number(hoc_ky)); }
     if (unit_id) {
       sql += ` AND s.unit_id IN (
         WITH RECURSIVE unit_tree AS (
@@ -513,10 +547,10 @@ app.get('/api/violations', async (req, res) => {
 
 app.post('/api/violations', async (req, res) => {
   try {
-    const { student_id, loai, ngay, ly_do } = req.body;
+    const { student_id, loai, ngay, ly_do, nam_hoc, hoc_ky } = req.body;
     const result = await query<any>(
-      'INSERT INTO violations (student_id, loai, ngay, ly_do) VALUES (?,?,?,?)',
-      [student_id, loai, ngay, ly_do || null]
+      'INSERT INTO violations (student_id, loai, ngay, ly_do, nam_hoc, hoc_ky) VALUES (?,?,?,?,?,?)',
+      [student_id, loai, ngay, ly_do || null, nam_hoc || null, hoc_ky || null]
     );
     res.json({ id: result.insertId });
   } catch (err: any) {
@@ -537,8 +571,9 @@ app.delete('/api/violations/:id', async (req, res) => {
 app.get('/api/awards', async (req, res) => {
   try {
     const { student_id, unit_id } = req.query as any;
-    let sql = `SELECT aw.*, s.ho_ten FROM awards aw
-               JOIN students s ON aw.student_id = s.id WHERE 1=1`;
+    let sql = `SELECT aw.*, s.ho_ten, u.name as unit_name FROM awards aw
+               JOIN students s ON aw.student_id = s.id
+               LEFT JOIN units u ON s.unit_id = u.id WHERE 1=1`;
     const params: any[] = [];
 
     if (student_id) { sql += ' AND aw.student_id = ?'; params.push(Number(student_id)); }
@@ -579,14 +614,81 @@ app.post('/api/awards', async (req, res) => {
     }
 
     await query(
-      `INSERT INTO awards (student_id, diem_nam_1, diem_nam_2, diem_nam_3, diem_nam_4, tong_ket, xep_loai)
-       VALUES (?,?,?,?,?,?,?)
-       ON DUPLICATE KEY UPDATE diem_nam_1=?, diem_nam_2=?, diem_nam_3=?, diem_nam_4=?, tong_ket=?, xep_loai=?`,
+      `INSERT INTO awards (student_id, diem_nam_1, diem_nam_2, diem_nam_3, diem_nam_4,
+                           hinh_thuc_nam_1, hinh_thuc_nam_2, hinh_thuc_nam_3, hinh_thuc_nam_4, hinh_thuc_toan_khoa,
+                           tong_ket, xep_loai)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+       ON DUPLICATE KEY UPDATE diem_nam_1=?, diem_nam_2=?, diem_nam_3=?, diem_nam_4=?,
+                               hinh_thuc_nam_1=?, hinh_thuc_nam_2=?, hinh_thuc_nam_3=?, hinh_thuc_nam_4=?, hinh_thuc_toan_khoa=?,
+                               tong_ket=?, xep_loai=?`,
       [
-        data.student_id, data.diem_nam_1, data.diem_nam_2, data.diem_nam_3, data.diem_nam_4, avg, xep_loai,
-        data.diem_nam_1, data.diem_nam_2, data.diem_nam_3, data.diem_nam_4, avg, xep_loai,
+        data.student_id, data.diem_nam_1, data.diem_nam_2, data.diem_nam_3, data.diem_nam_4,
+        data.hinh_thuc_nam_1 || null, data.hinh_thuc_nam_2 || null, data.hinh_thuc_nam_3 || null, data.hinh_thuc_nam_4 || null, data.hinh_thuc_toan_khoa || null,
+        avg, xep_loai,
+        
+        data.diem_nam_1, data.diem_nam_2, data.diem_nam_3, data.diem_nam_4,
+        data.hinh_thuc_nam_1 || null, data.hinh_thuc_nam_2 || null, data.hinh_thuc_nam_3 || null, data.hinh_thuc_nam_4 || null, data.hinh_thuc_toan_khoa || null,
+        avg, xep_loai,
       ]
     );
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============ Other Awards ============
+app.get('/api/other-awards', async (req, res) => {
+  try {
+    const { student_id, unit_id } = req.query as any;
+    let sql = `SELECT oa.*, s.ho_ten, u.name as unit_name FROM other_awards oa
+               JOIN students s ON oa.student_id = s.id
+               LEFT JOIN units u ON s.unit_id = u.id WHERE 1=1`;
+    const params: any[] = [];
+    if (student_id) { sql += ' AND oa.student_id = ?'; params.push(Number(student_id)); }
+    if (unit_id) {
+      sql += ` AND s.unit_id IN (
+        WITH RECURSIVE unit_tree AS (
+          SELECT id FROM units WHERE id = ?
+          UNION ALL
+          SELECT u2.id FROM units u2 JOIN unit_tree ut ON u2.parent_id = ut.id
+        )
+        SELECT id FROM unit_tree
+      )`;
+      params.push(Number(unit_id));
+    }
+    sql += ' ORDER BY oa.ngay_khen_thuong DESC';
+    res.json(await query(sql, params));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/other-awards', async (req, res) => {
+  try {
+    const data = req.body;
+    if (data.id) {
+      await query(
+        `UPDATE other_awards SET loai_khen_thuong=?, ten_giai_thuong=?, cap_khen_thuong=?, nam_hoc=?, ngay_khen_thuong=?, ghi_chu=?
+         WHERE id=?`,
+        [data.loai_khen_thuong, data.ten_giai_thuong, data.cap_khen_thuong || null, data.nam_hoc || null, data.ngay_khen_thuong || null, data.ghi_chu || null, data.id]
+      );
+    } else {
+      await query(
+        `INSERT INTO other_awards (student_id, loai_khen_thuong, ten_giai_thuong, cap_khen_thuong, nam_hoc, ngay_khen_thuong, ghi_chu)
+         VALUES (?,?,?,?,?,?,?)`,
+        [data.student_id, data.loai_khen_thuong, data.ten_giai_thuong, data.cap_khen_thuong || null, data.nam_hoc || null, data.ngay_khen_thuong || null, data.ghi_chu || null]
+      );
+    }
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/other-awards/:id', async (req, res) => {
+  try {
+    await query('DELETE FROM other_awards WHERE id = ?', [Number(req.params.id)]);
     res.json({ success: true });
   } catch (err: any) {
     res.status(500).json({ error: err.message });

@@ -164,18 +164,25 @@ export const deleteDisciplineScore = (id: number) =>
     : fetchApi(`/discipline-scores/${id}`, { method: 'DELETE' });
 
 // ============ Absences ============
-export const getAbsences = (filters: { student_id?: number; unit_id?: number }) => {
+export const getAbsences = (filters: { student_id?: number; unit_id?: number; nam_hoc?: number; hoc_ky?: number }) => {
   if (isElectron) return (window as any).electronAPI.invoke('absences:get', filters);
   const params = new URLSearchParams();
   if (filters.student_id) params.set('student_id', String(filters.student_id));
   if (filters.unit_id) params.set('unit_id', String(filters.unit_id));
+  if (filters.nam_hoc) params.set('nam_hoc', String(filters.nam_hoc));
+  if (filters.hoc_ky) params.set('hoc_ky', String(filters.hoc_ky));
   return fetchApi(`/absences?${params}`);
 };
 
-export const createAbsence = (data: { student_id: number; ngay_vang: string; ghi_chu?: string }) =>
+export const createAbsence = (data: any) =>
   isElectron
     ? (window as any).electronAPI.invoke('absences:create', data)
     : fetchApi('/absences', { method: 'POST', body: JSON.stringify(data) });
+
+export const updateAbsenceNote = (id: number, ghi_chu_thi?: string | null, ghi_chu?: string | null) =>
+  isElectron
+    ? (window as any).electronAPI.invoke('absences:update-note', { id, ghi_chu_thi, ghi_chu })
+    : fetchApi(`/absences/${id}/note`, { method: 'PUT', body: JSON.stringify({ ghi_chu_thi, ghi_chu }) });
 
 export const deleteAbsence = (id: number) =>
   isElectron
@@ -183,15 +190,17 @@ export const deleteAbsence = (id: number) =>
     : fetchApi(`/absences/${id}`, { method: 'DELETE' });
 
 // ============ Violations ============
-export const getViolations = (filters: { student_id?: number; unit_id?: number }) => {
+export const getViolations = (filters: { student_id?: number; unit_id?: number; nam_hoc?: number; hoc_ky?: number }) => {
   if (isElectron) return (window as any).electronAPI.invoke('violations:get', filters);
   const params = new URLSearchParams();
   if (filters.student_id) params.set('student_id', String(filters.student_id));
   if (filters.unit_id) params.set('unit_id', String(filters.unit_id));
+  if (filters.nam_hoc) params.set('nam_hoc', String(filters.nam_hoc));
+  if (filters.hoc_ky) params.set('hoc_ky', String(filters.hoc_ky));
   return fetchApi(`/violations?${params}`);
 };
 
-export const createViolation = (data: { student_id: number; loai: string; ngay: string; ly_do?: string }) =>
+export const createViolation = (data: any) =>
   isElectron
     ? (window as any).electronAPI.invoke('violations:create', data)
     : fetchApi('/violations', { method: 'POST', body: JSON.stringify(data) });
@@ -209,6 +218,21 @@ export const getAwards = (filters: { student_id?: number; unit_id?: number }) =>
   if (filters.unit_id) params.set('unit_id', String(filters.unit_id));
   return fetchApi(`/awards?${params}`);
 };
+
+// ============ Other Awards ============
+export const getOtherAwards = (filters: { student_id?: number; unit_id?: number }) => {
+  if (isElectron) return invoke('other-awards:get', filters);
+  const params = new URLSearchParams();
+  if (filters.student_id) params.set('student_id', String(filters.student_id));
+  if (filters.unit_id) params.set('unit_id', String(filters.unit_id));
+  return fetchApi(`/other-awards?${params}`);
+};
+
+export const saveOtherAward = (data: any) =>
+  isElectron ? invoke('other-awards:save', data) : fetchApi('/other-awards', { method: 'POST', body: JSON.stringify(data) });
+
+export const deleteOtherAward = (id: number) =>
+  isElectron ? invoke('other-awards:delete', id) : fetchApi(`/other-awards/${id}`, { method: 'DELETE' });
 
 export const saveAward = (data: any) =>
   isElectron

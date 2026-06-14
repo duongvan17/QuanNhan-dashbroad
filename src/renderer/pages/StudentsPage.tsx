@@ -7,7 +7,7 @@ import {
   PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined,
   EyeOutlined, UserOutlined, CopyOutlined, UploadOutlined,
 } from '@ant-design/icons';
-import { getStudents, createStudent, updateStudent, deleteStudent, getUnits } from '../services/api';
+import { getStudents, createStudent, updateStudent, deleteStudent, getUnits, getOtherAwards } from '../services/api';
 import { useAuth } from '../auth/AuthContext';
 import type { Unit } from '../../shared/types';
 import dayjs from 'dayjs';
@@ -28,7 +28,23 @@ const StudentsPage: React.FC = () => {
   const [editingStudent, setEditingStudent] = useState<any>(null);
   const [form] = Form.useForm();
   const [searchText, setSearchText] = useState('');
+  const [studentAwards, setStudentAwards] = useState<any[]>([]);
   const hinhAnh = Form.useWatch('hinh_anh', form);
+
+  useEffect(() => {
+    if (detailOpen && selectedStudent) {
+      loadStudentAwards(selectedStudent.id);
+    }
+  }, [detailOpen, selectedStudent]);
+
+  const loadStudentAwards = async (studentId: number) => {
+    try {
+      const res = await getOtherAwards({ student_id: studentId });
+      setStudentAwards(res);
+    } catch {
+      setStudentAwards([]);
+    }
+  };
 
   const handleImageUpload = (file: File) => {
     if (file.size > 2 * 1024 * 1024) {
@@ -120,6 +136,7 @@ const StudentsPage: React.FC = () => {
     form.setFieldsValue({
       ...record,
       ngay_sinh: record.ngay_sinh ? dayjs(record.ngay_sinh) : null,
+      cccd_ngay_cap: record.cccd_ngay_cap ? dayjs(record.cccd_ngay_cap) : null,
       bo_ngay_sinh: record.bo_ngay_sinh ? dayjs(record.bo_ngay_sinh) : null,
       me_ngay_sinh: record.me_ngay_sinh ? dayjs(record.me_ngay_sinh) : null,
     });
@@ -132,6 +149,7 @@ const StudentsPage: React.FC = () => {
       const data = {
         ...values,
         ngay_sinh: values.ngay_sinh?.format('YYYY-MM-DD') || null,
+        cccd_ngay_cap: values.cccd_ngay_cap?.format('YYYY-MM-DD') || null,
         bo_ngay_sinh: values.bo_ngay_sinh?.format('YYYY-MM-DD') || null,
         me_ngay_sinh: values.me_ngay_sinh?.format('YYYY-MM-DD') || null,
       };
@@ -162,9 +180,9 @@ const StudentsPage: React.FC = () => {
   };
 
   const handleCopyTable = () => {
-    const headers = ['STT', 'Họ và tên', 'Ngày sinh', 'CCCD', 'Cấp bậc', 'Chức vụ', 'Quê quán', 'Đơn vị'];
+    const headers = ['STT', 'Họ và tên', 'Ngày sinh', 'CCCD', 'Ngày cấp CCCD', 'Nơi cấp CCCD', 'BHYT', 'Cấp bậc', 'Chức vụ', 'Quê quán', 'Đơn vị'];
     const rows = students.map((s, i) => [
-      i + 1, s.ho_ten, s.ngay_sinh || '', s.cccd || '', s.cap_bac || '',
+      i + 1, s.ho_ten, s.ngay_sinh || '', s.cccd || '', s.cccd_ngay_cap || '', s.cccd_noi_cap || '', s.bhyt || '', s.cap_bac || '',
       s.chuc_vu || '', s.que_quan || '', s.unit_name || '',
     ]);
     const text = [headers, ...rows].map((r) => r.join('\t')).join('\n');
@@ -330,6 +348,15 @@ const StudentsPage: React.FC = () => {
             <Form.Item name="cccd" label="CCCD">
               <Input />
             </Form.Item>
+            <Form.Item name="cccd_ngay_cap" label="Ngày cấp CCCD">
+              <DatePicker format="DD/MM/YYYY" style={{ width: '100%' }} placeholder="Chọn ngày cấp" />
+            </Form.Item>
+            <Form.Item name="cccd_noi_cap" label="Nơi cấp CCCD">
+              <Input />
+            </Form.Item>
+            <Form.Item name="bhyt" label="Mã BHYT">
+              <Input />
+            </Form.Item>
             <Form.Item name="cap_bac" label="Cấp bậc">
               <Input />
             </Form.Item>
@@ -399,10 +426,30 @@ const StudentsPage: React.FC = () => {
               {selectedStudent.ngay_sinh ? dayjs(selectedStudent.ngay_sinh).format('DD/MM/YYYY') : '-'}
             </Descriptions.Item>
             <Descriptions.Item label="CCCD">{selectedStudent.cccd || '-'}</Descriptions.Item>
+            <Descriptions.Item label="Ngày cấp CCCD">
+              {selectedStudent.cccd_ngay_cap ? dayjs(selectedStudent.cccd_ngay_cap).format('DD/MM/YYYY') : '-'}
+            </Descriptions.Item>
+            <Descriptions.Item label="Nơi cấp CCCD">{selectedStudent.cccd_noi_cap || '-'}</Descriptions.Item>
+            <Descriptions.Item label="Mã BHYT">{selectedStudent.bhyt || '-'}</Descriptions.Item>
             <Descriptions.Item label="Cấp bậc">{selectedStudent.cap_bac || '-'}</Descriptions.Item>
             <Descriptions.Item label="Chức vụ">{selectedStudent.chuc_vu || '-'}</Descriptions.Item>
             <Descriptions.Item label="Quê quán">{selectedStudent.que_quan || '-'}</Descriptions.Item>
             <Descriptions.Item label="Địa chỉ thường trú">{selectedStudent.dia_chi_thuong_tru || '-'}</Descriptions.Item>
+            <Descriptions.Item label="Khen thưởng đột xuất & Giải thưởng riêng">
+              {studentAwards.length > 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {studentAwards.map((a, idx) => (
+                    <Tag key={idx} color="purple" style={{ whiteSpace: 'normal', height: 'auto', padding: '4px 8px', margin: 0 }}>
+                      <strong>{a.ten_giai_thuong}</strong> ({a.loai_khen_thuong}) - Cấp: {a.cap_khen_thuong || 'Chưa rõ'}
+                      {a.ngay_khen_thuong && ` - Ngày: ${dayjs(a.ngay_khen_thuong).format('DD/MM/YYYY')}`}
+                      {a.ghi_chu && ` (${a.ghi_chu})`}
+                    </Tag>
+                  ))}
+                </div>
+              ) : (
+                <span style={{ color: '#aaa' }}>Chưa có giải thưởng riêng</span>
+              )}
+            </Descriptions.Item>
             <Descriptions.Item label="Bố - Họ tên">{selectedStudent.bo_ho_ten || '-'}</Descriptions.Item>
             <Descriptions.Item label="Bố - Nghề nghiệp">{selectedStudent.bo_nghe_nghiep || '-'}</Descriptions.Item>
             <Descriptions.Item label="Bố - Nơi ở">{selectedStudent.bo_noi_o || '-'}</Descriptions.Item>

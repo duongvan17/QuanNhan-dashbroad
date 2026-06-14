@@ -48,6 +48,9 @@ export interface Student {
   hinh_anh: string | null;
   ngay_sinh: string | null;
   cccd: string | null;
+  cccd_ngay_cap?: string | null;
+  cccd_noi_cap?: string | null;
+  bhyt?: string | null;
   cap_bac: string | null;
   chuc_vu: string | null;
   que_quan: string | null;
@@ -110,6 +113,7 @@ export interface DisciplineScore {
   tuan_2: number | null;
   tuan_3: number | null;
   tuan_4: number | null;
+  tuan_5: number | null;
   diem_thang: number | null;
   xep_loai: string | null;
   created_at?: string;
@@ -120,8 +124,15 @@ export interface Absence {
   id: number;
   student_id: number;
   ngay_vang: string;
+  mon_hoc?: string | null;
+  so_tiet_vang?: number;
+  ten_bai?: string | null;
+  giang_vien?: string | null;
   ghi_chu: string | null;
+  ghi_chu_thi?: string | null;
   created_at?: string;
+  ho_ten?: string;
+  unit_name?: string;
 }
 
 // ============ Vi phạm ============
@@ -133,7 +144,11 @@ export interface Violation {
   loai: ViolationType;
   ngay: string;
   ly_do: string | null;
+  nam_hoc?: number | null;
+  hoc_ky?: number | null;
   created_at?: string;
+  ho_ten?: string;
+  unit_name?: string;
 }
 
 // ============ Thi đua khen thưởng ============
@@ -144,10 +159,31 @@ export interface Award {
   diem_nam_2: number | null;
   diem_nam_3: number | null;
   diem_nam_4: number | null;
+  hinh_thuc_nam_1?: string | null;
+  hinh_thuc_nam_2?: string | null;
+  hinh_thuc_nam_3?: string | null;
+  hinh_thuc_nam_4?: string | null;
+  hinh_thuc_toan_khoa?: string | null;
   tong_ket: number | null;
   xep_loai: string | null;
   created_at?: string;
   updated_at?: string;
+  ho_ten?: string;
+  unit_name?: string;
+}
+
+export interface OtherAward {
+  id: number;
+  student_id: number;
+  loai_khen_thuong: string;
+  ten_giai_thuong: string;
+  cap_khen_thuong: string | null;
+  nam_hoc: number | null;
+  ngay_khen_thuong: string | null;
+  ghi_chu: string | null;
+  created_at?: string;
+  ho_ten?: string;
+  unit_name?: string;
 }
 
 // ============ IPC Channels ============
@@ -204,6 +240,11 @@ export const IPC = {
   AWARDS_GET: 'awards:get',
   AWARDS_SAVE: 'awards:save',
   AWARDS_DELETE: 'awards:delete',
+
+  // Other Awards
+  OTHER_AWARDS_GET: 'other-awards:get',
+  OTHER_AWARDS_SAVE: 'other-awards:save',
+  OTHER_AWARDS_DELETE: 'other-awards:delete',
 
   // Party Members
   PARTY_GET: 'party:get',

@@ -1,47 +1,57 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   Card, Table, Button, Modal, Form, Input, Select, DatePicker, Space, Typography,
-  Popconfirm, App, Drawer, Descriptions, Cascader, Tag, Tooltip, Image, Upload, Row, Col, Statistic,
+  Popconfirm, App, Drawer, Descriptions, Cascader, Tag, Tooltip, Image, Upload, Row, Col, Statistic, Tabs
 } from 'antd';
 import {
   PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined,
   EyeOutlined, UserOutlined, CopyOutlined, UploadOutlined, FlagOutlined,
+  FileWordOutlined, BookOutlined, UserAddOutlined
 } from '@ant-design/icons';
 import {
-  getPartyMembers, createPartyMember, updatePartyMember, deletePartyMember, getUnits,
+  getPartyMembers, createPartyMember, updatePartyMember, deletePartyMember, getUnits, getStudents
 } from '../services/api';
 import { useAuth } from '../auth/AuthContext';
-import type { Unit, PartyMember } from '../../shared/types';
+import type { Unit, PartyMember, Student } from '../../shared/types';
 import dayjs from 'dayjs';
 
 const { Title } = Typography;
 
-const officialTag = (chinhThuc: string | null) =>
-  chinhThuc
-    ? <Tag color="green" style={{ fontSize: 13 }}>Chính thức</Tag>
-    : <Tag color="orange" style={{ fontSize: 13 }}>Chưa chính thức</Tag>;
-
 const PartyMembersPage: React.FC = () => {
   const { message } = App.useApp();
   const { isAdmin } = useAuth();
-  const [data, setData] = useState<PartyMember[]>([]);
+  const [activeTab, setActiveTab] = useState<'official' | 'pending' | 'non_party'>('official');
+
+  const [partyMembers, setPartyMembers] = useState<PartyMember[]>([]);
+  const [students, setStudents] = useState<Student[]>([]);
   const [units, setUnits] = useState<Unit[]>([]);
   const [loading, setLoading] = useState(false);
-  const [filters, setFilters] = useState<{ unit_id?: number; search?: string; status?: 'official' | 'pending' }>({});
+  
+  const [filters, setFilters] = useState<{ unit_id?: number }>({});
   const [searchText, setSearchText] = useState('');
+  
   const [modalOpen, setModalOpen] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [handbookOpen, setHandbookOpen] = useState(false);
+  const [resumeOpen, setResumeOpen] = useState(false);
+  const [resumeStudent, setResumeStudent] = useState<PartyMember | null>(null);
   const [selected, setSelected] = useState<PartyMember | null>(null);
   const [editing, setEditing] = useState<PartyMember | null>(null);
+  
   const [form] = Form.useForm();
   const hinhAnh = Form.useWatch('hinh_anh', form);
 
-  const load = useCallback(async () => {
+  const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      setData(await getPartyMembers(filters));
+      const [membersData, studentsData] = await Promise.all([
+        getPartyMembers(filters),
+        getStudents({ unit_id: filters.unit_id, pageSize: 1000 })
+      ]);
+      setPartyMembers(membersData);
+      setStudents(studentsData.data || []);
     } catch (err: any) {
-      message.error('Lỗi: ' + err.message);
+      message.error('Lỗi tải dữ liệu: ' + err.message);
     } finally {
       setLoading(false);
     }
@@ -52,7 +62,7 @@ const PartyMembersPage: React.FC = () => {
   };
 
   useEffect(() => { loadUnits(); }, []);
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { loadData(); }, [loadData]);
 
   const buildCascaderOptions = () => {
     const tieuDoans = units.filter((u) => u.type === 'tieu_doan');
@@ -86,6 +96,24 @@ const PartyMembersPage: React.FC = () => {
     setEditing(null); form.resetFields(); setModalOpen(true);
   };
 
+  const openAddFromStudent = (student: Student) => {
+    setEditing(null);
+    form.resetFields();
+    
+    // Find unit name
+    const platoon = units.find(u => u.id === student.unit_id);
+    
+    form.setFieldsValue({
+      ho_ten: student.ho_ten,
+      unit_id: student.unit_id,
+      ngay_sinh: student.ngay_sinh ? dayjs(student.ngay_sinh) : null,
+      que_quan: student.que_quan,
+      noi_dkht: student.dia_chi_thuong_tru,
+      hinh_anh: student.hinh_anh,
+    });
+    setModalOpen(true);
+  };
+
   const openEdit = (r: PartyMember) => {
     setEditing(r);
     form.setFieldsValue({
@@ -110,13 +138,13 @@ const PartyMembersPage: React.FC = () => {
       };
       if (editing) {
         await updatePartyMember({ ...payload, id: editing.id });
-        message.success('Đã cập nhật');
+        message.success('Đã cập nhật đảng viên');
       } else {
         await createPartyMember(payload);
-        message.success('Đã thêm');
+        message.success('Đã thêm đảng viên mới');
       }
       setModalOpen(false);
-      load();
+      loadData();
     } catch (err: any) {
       if (err.errorFields) return;
       message.error('Lỗi: ' + err.message);
@@ -127,24 +155,10 @@ const PartyMembersPage: React.FC = () => {
     try {
       await deletePartyMember(id);
       message.success('Đã xóa');
-      load();
+      loadData();
     } catch (err: any) {
       message.error('Lỗi: ' + err.message);
     }
-  };
-
-  const handleCopy = () => {
-    const headers = ['STT', 'Họ và tên', 'Ngày sinh', 'Đơn vị', 'Ngày vào Đảng', 'Ngày chính thức', 'Trạng thái'];
-    const rows = data.map((r, i) => [
-      i + 1, r.ho_ten,
-      r.ngay_sinh ? dayjs(r.ngay_sinh).format('DD/MM/YYYY') : '',
-      r.unit_name || '',
-      r.ngay_vao_dang ? dayjs(r.ngay_vao_dang).format('DD/MM/YYYY') : '',
-      r.ngay_vao_dang_chinh_thuc ? dayjs(r.ngay_vao_dang_chinh_thuc).format('DD/MM/YYYY') : '',
-      r.ngay_vao_dang_chinh_thuc ? 'Chính thức' : 'Chưa chính thức',
-    ]);
-    navigator.clipboard.writeText([headers, ...rows].map((r) => r.join('\t')).join('\n'));
-    message.success('Đã copy bảng');
   };
 
   const handleFilterUnit = (val: any) => {
@@ -152,11 +166,93 @@ const PartyMembersPage: React.FC = () => {
     setFilters((p) => ({ ...p, unit_id }));
   };
 
-  const officialCount = data.filter((r) => r.ngay_vao_dang_chinh_thuc).length;
-  const pendingCount = data.length - officialCount;
+  // Lists filtering and classification
+  const officialList = partyMembers.filter(pm => pm.ngay_vao_dang_chinh_thuc != null && pm.ngay_vao_dang_chinh_thuc !== '');
+  const pendingList = partyMembers.filter(pm => pm.ngay_vao_dang_chinh_thuc == null || pm.ngay_vao_dang_chinh_thuc === '');
+  
+  const getChuaVaoDangList = () => {
+    return students.filter(s => {
+      const isMember = partyMembers.some(pm => {
+        const nameMatch = (pm.ho_ten || '').trim().toLowerCase() === (s.ho_ten || '').trim().toLowerCase();
+        const bdayMatch = !pm.ngay_sinh || !s.ngay_sinh || pm.ngay_sinh === s.ngay_sinh;
+        return nameMatch && bdayMatch;
+      });
+      return !isMember;
+    });
+  };
+  const nonPartyList = getChuaVaoDangList();
 
-  const columns: any[] = [
-    { title: 'STT', width: 60, render: (_: any, __: any, i: number) => i + 1 },
+  // In-memory text filters
+  const filteredOfficial = officialList.filter(pm => (pm.ho_ten || '').toLowerCase().includes(searchText.toLowerCase()));
+  const filteredPending = pendingList.filter(pm => (pm.ho_ten || '').toLowerCase().includes(searchText.toLowerCase()));
+  const filteredNonParty = nonPartyList.filter(s => (s.ho_ten || '').toLowerCase().includes(searchText.toLowerCase()));
+
+  // Countdown calculations
+  const renderCountdown = (ngayVaoDang: string | null) => {
+    if (!ngayVaoDang) return <span style={{ color: '#ccc' }}>-</span>;
+    const today = dayjs().startOf('day');
+    const joinDate = dayjs(ngayVaoDang).startOf('day');
+    const targetDate = joinDate.add(1, 'year'); // 12 months reserve period
+    const diffDays = targetDate.diff(today, 'day');
+
+    if (diffDays > 0) {
+      return <Tag color="blue">Còn {diffDays} ngày</Tag>;
+    } else if (diffDays === 0) {
+      return <Tag color="green">Hôm nay chuyển chính thức!</Tag>;
+    } else {
+      return <Tag color="red">Quá hạn {-diffDays} ngày</Tag>;
+    }
+  };
+
+  const handleCopy = () => {
+    let headers: string[] = [];
+    let rows: any[][] = [];
+
+    if (activeTab === 'official') {
+      headers = ['STT', 'Họ và tên', 'Ngày sinh', 'Đơn vị', 'Ngày vào Đảng (dự bị)', 'Ngày chính thức'];
+      rows = filteredOfficial.map((r, i) => [
+        i + 1, r.ho_ten,
+        r.ngay_sinh ? dayjs(r.ngay_sinh).format('DD/MM/YYYY') : '',
+        r.unit_name || '',
+        r.ngay_vao_dang ? dayjs(r.ngay_vao_dang).format('DD/MM/YYYY') : '',
+        r.ngay_vao_dang_chinh_thuc ? dayjs(r.ngay_vao_dang_chinh_thuc).format('DD/MM/YYYY') : ''
+      ]);
+    } else if (activeTab === 'pending') {
+      headers = ['STT', 'Họ và tên', 'Ngày sinh', 'Đơn vị', 'Ngày vào Đảng (dự bị)', 'Thời gian còn lại'];
+      rows = filteredPending.map((r, i) => {
+        const joinDate = r.ngay_vao_dang ? dayjs(r.ngay_vao_dang) : null;
+        const target = joinDate ? joinDate.add(1, 'year') : null;
+        const diff = target ? target.diff(dayjs(), 'day') : 0;
+        const countdownStr = diff > 0 ? `Còn ${diff} ngày` : diff === 0 ? 'Hôm nay' : `Quá hạn ${-diff} ngày`;
+        return [
+          i + 1, r.ho_ten,
+          r.ngay_sinh ? dayjs(r.ngay_sinh).format('DD/MM/YYYY') : '',
+          r.unit_name || '',
+          r.ngay_vao_dang ? dayjs(r.ngay_vao_dang).format('DD/MM/YYYY') : '',
+          countdownStr
+        ];
+      });
+    } else {
+      headers = ['STT', 'Họ và tên', 'Ngày sinh', 'Đơn vị', 'Chức vụ', 'Cấp bậc'];
+      rows = filteredNonParty.map((r, i) => {
+        const platoon = units.find(u => u.id === r.unit_id);
+        return [
+          i + 1, r.ho_ten,
+          r.ngay_sinh ? dayjs(r.ngay_sinh).format('DD/MM/YYYY') : '',
+          platoon?.name || '',
+          r.chuc_vu || '',
+          r.cap_bac || ''
+        ];
+      });
+    }
+
+    navigator.clipboard.writeText([headers, ...rows].map((r) => r.join('\t')).join('\n'));
+    message.success('Đã copy dữ liệu bảng hiện tại');
+  };
+
+  // Columns Definitions
+  const sharedColumns = [
+    { title: 'STT', width: 60, align: 'center' as const, render: (_: any, __: any, i: number) => i + 1 },
     {
       title: 'Ảnh', dataIndex: 'hinh_anh', width: 64, align: 'center' as const,
       render: (v: string | null) => v
@@ -166,38 +262,111 @@ const PartyMembersPage: React.FC = () => {
     {
       title: 'Họ và tên', dataIndex: 'ho_ten', width: 200,
       render: (text: string, r: PartyMember) => (
-        <a onClick={() => { setSelected(r); setDetailOpen(true); }}>{text}</a>
+        <a onClick={() => { setSelected(r); setDetailOpen(true); }} style={{ fontWeight: 600 }}>{text}</a>
       ),
     },
     { title: 'Ngày sinh', dataIndex: 'ngay_sinh', width: 110,
       render: (v: string) => v ? dayjs(v).format('DD/MM/YYYY') : '-' },
     { title: 'Đơn vị', dataIndex: 'unit_name', width: 150, render: (v: string) => v || '-' },
-    { title: 'Ngày vào Đảng', dataIndex: 'ngay_vao_dang', width: 130,
+  ];
+
+  const officialColumns = [
+    ...sharedColumns,
+    { title: 'Ngày vào Đảng (DB)', dataIndex: 'ngay_vao_dang', width: 140,
       render: (v: string) => v ? dayjs(v).format('DD/MM/YYYY') : '-' },
     { title: 'Ngày chính thức', dataIndex: 'ngay_vao_dang_chinh_thuc', width: 140,
-      render: (v: string) => v ? dayjs(v).format('DD/MM/YYYY') : <span style={{ color: '#faad14' }}>Chưa</span> },
-    { title: 'Trạng thái', dataIndex: 'ngay_vao_dang_chinh_thuc', width: 140, align: 'center' as const,
-      render: (v: string | null) => officialTag(v) },
+      render: (v: string) => <strong>{dayjs(v).format('DD/MM/YYYY')}</strong> },
     {
-      title: 'Thao tác', width: 120, align: 'center' as const,
+      title: 'Thao tác', width: 150, align: 'center' as const,
       render: (_: any, r: PartyMember) => (
-        <Space>
+        <Space size={2}>
           <Tooltip title="Xem">
-            <Button size="small" icon={<EyeOutlined />} onClick={() => { setSelected(r); setDetailOpen(true); }} />
+            <Button size="small" icon={<EyeOutlined />} type="text" onClick={() => { setSelected(r); setDetailOpen(true); }} />
+          </Tooltip>
+          <Tooltip title="Lý lịch Đảng viên">
+            <Button size="small" icon={<FileWordOutlined />} type="text" onClick={() => { setResumeStudent(r); setResumeOpen(true); }} />
           </Tooltip>
           {isAdmin && (
             <Tooltip title="Sửa">
-              <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(r)} />
+              <Button size="small" icon={<EditOutlined />} type="text" onClick={() => openEdit(r)} />
             </Tooltip>
           )}
           {isAdmin && (
             <Popconfirm title="Xóa đảng viên này?" onConfirm={() => handleDelete(r.id)}>
-              <Button size="small" danger icon={<DeleteOutlined />} />
+              <Button size="small" danger icon={<DeleteOutlined />} type="text" />
             </Popconfirm>
           )}
         </Space>
       ),
     },
+  ];
+
+  const pendingColumns = [
+    ...sharedColumns,
+    { title: 'Ngày vào Đảng (DB)', dataIndex: 'ngay_vao_dang', width: 140,
+      render: (v: string) => v ? dayjs(v).format('DD/MM/YYYY') : '-' },
+    { title: 'Thời gian chuyển chính thức', width: 180, align: 'center' as const,
+      render: (_: any, r: PartyMember) => renderCountdown(r.ngay_vao_dang) },
+    {
+      title: 'Thao tác', width: 150, align: 'center' as const,
+      render: (_: any, r: PartyMember) => (
+        <Space size={2}>
+          <Tooltip title="Xem">
+            <Button size="small" icon={<EyeOutlined />} type="text" onClick={() => { setSelected(r); setDetailOpen(true); }} />
+          </Tooltip>
+          <Tooltip title="Lý lịch Đảng viên">
+            <Button size="small" icon={<FileWordOutlined />} type="text" onClick={() => { setResumeStudent(r); setResumeOpen(true); }} />
+          </Tooltip>
+          {isAdmin && (
+            <Tooltip title="Sửa">
+              <Button size="small" icon={<EditOutlined />} type="text" onClick={() => openEdit(r)} />
+            </Tooltip>
+          )}
+          {isAdmin && (
+            <Popconfirm title="Xóa đảng viên này?" onConfirm={() => handleDelete(r.id)}>
+              <Button size="small" danger icon={<DeleteOutlined />} type="text" />
+            </Popconfirm>
+          )}
+        </Space>
+      ),
+    },
+  ];
+
+  const nonPartyColumns = [
+    { title: 'STT', width: 60, align: 'center' as const, render: (_: any, __: any, i: number) => i + 1 },
+    {
+      title: 'Ảnh', dataIndex: 'hinh_anh', width: 64, align: 'center' as const,
+      render: (v: string | null) => v
+        ? <Image src={v} width={36} height={36} style={{ objectFit: 'cover', borderRadius: 6 }} />
+        : <UserOutlined style={{ fontSize: 20, color: '#ccc' }} />,
+    },
+    { title: 'Họ và tên', dataIndex: 'ho_ten', width: 200, style: { fontWeight: 600 } },
+    { title: 'Ngày sinh', dataIndex: 'ngay_sinh', width: 120,
+      render: (v: string) => v ? dayjs(v).format('DD/MM/YYYY') : '-' },
+    { title: 'Đơn vị', dataIndex: 'unit_id', width: 180,
+      render: (uid: number) => {
+        const platoon = units.find(u => u.id === uid);
+        const company = platoon ? units.find(u => u.id === platoon.parent_id) : null;
+        return company ? `${company.name} - ${platoon?.name}` : (platoon?.name || '-');
+      }
+    },
+    { title: 'Quê quán', dataIndex: 'que_quan', ellipsis: true },
+    {
+      title: 'Thao tác', width: 140, align: 'center' as const,
+      render: (_: any, record: Student) => (
+        isAdmin ? (
+          <Button
+            type="primary"
+            ghost
+            size="small"
+            icon={<UserAddOutlined />}
+            onClick={() => openAddFromStudent(record)}
+          >
+            Kết nạp Đảng
+          </Button>
+        ) : '-'
+      )
+    }
   ];
 
   return (
@@ -210,58 +379,86 @@ const PartyMembersPage: React.FC = () => {
           <Cascader
             options={buildCascaderOptions()} onChange={handleFilterUnit}
             placeholder="Lọc theo đơn vị" changeOnSelect allowClear
-            style={{ width: 280 }}
-          />
-          <Select
-            placeholder="Trạng thái" allowClear style={{ width: 170 }}
-            onChange={(v) => setFilters((p) => ({ ...p, status: v }))}
-            options={[
-              { value: 'official', label: 'Chính thức' },
-              { value: 'pending', label: 'Chưa chính thức' },
-            ]}
+            style={{ width: 250 }}
           />
           <Input.Search
             placeholder="Tìm họ tên..." value={searchText}
             onChange={(e) => setSearchText(e.target.value)}
-            onSearch={(v) => setFilters((p) => ({ ...p, search: v }))}
-            style={{ width: 240 }} enterButton={<SearchOutlined />} allowClear
+            style={{ width: 220 }} allowClear enterButton={<SearchOutlined />}
           />
+          <Button icon={<BookOutlined />} onClick={() => setHandbookOpen(true)}>Sổ tay đảng viên</Button>
           <Button icon={<CopyOutlined />} onClick={handleCopy}>Copy bảng</Button>
-          {isAdmin && (
+          {isAdmin && activeTab !== 'non_party' && (
             <Button type="primary" icon={<PlusOutlined />} onClick={openAdd}>Thêm đảng viên</Button>
           )}
         </Space>
       </Space>
 
       <Row gutter={16} style={{ marginBottom: 16 }}>
-        <Col xs={12} sm={8} md={6}>
-          <Card size="small"><Statistic title="Tổng đảng viên" value={data.length}
-            styles={{ content: { color: '#1677ff', fontSize: 28 } }} /></Card>
+        <Col xs={12} sm={6}>
+          <Card size="small"><Statistic title="Tổng đảng viên" value={partyMembers.length} styles={{ content: { color: '#1677ff', fontWeight: 600 } }} /></Card>
         </Col>
-        <Col xs={12} sm={8} md={6}>
-          <Card size="small"><Statistic title="Chính thức" value={officialCount}
-            styles={{ content: { color: '#52c41a', fontSize: 28 } }} /></Card>
+        <Col xs={12} sm={6}>
+          <Card size="small"><Statistic title="Chính thức" value={officialList.length} styles={{ content: { color: '#52c41a', fontWeight: 600 } }} /></Card>
         </Col>
-        <Col xs={12} sm={8} md={6}>
-          <Card size="small"><Statistic title="Chưa chính thức" value={pendingCount}
-            styles={{ content: { color: '#faad14', fontSize: 28 } }} /></Card>
+        <Col xs={12} sm={6}>
+          <Card size="small"><Statistic title="Dự bị" value={pendingList.length} styles={{ content: { color: '#faad14', fontWeight: 600 } }} /></Card>
+        </Col>
+        <Col xs={12} sm={6}>
+          <Card size="small"><Statistic title="Chưa vào Đảng" value={nonPartyList.length} styles={{ content: { color: '#8c8c8c', fontWeight: 600 } }} /></Card>
         </Col>
       </Row>
 
-      <Card styles={{ body: { padding: 0 } }}>
-        <Table
-          columns={columns} dataSource={data} rowKey="id" loading={loading}
-          size="middle" scroll={{ x: 1200 }} pagination={{ pageSize: 50, showSizeChanger: true, showTotal: (t) => `Tổng: ${t}` }}
-        />
-      </Card>
+      <Tabs
+        activeKey={activeTab}
+        onChange={(k: any) => { setActiveTab(k); setSearchText(''); }}
+        items={[
+          {
+            key: 'official',
+            label: <span><Tag color="green" style={{ border: 'none', margin: 0, padding: '0 8px' }}>Chính thức ({filteredOfficial.length})</Tag></span>,
+            children: (
+              <Card styles={{ body: { padding: 0 } }}>
+                <Table
+                  columns={officialColumns} dataSource={filteredOfficial} rowKey="id" loading={loading}
+                  size="middle" scroll={{ x: 1000 }} pagination={{ pageSize: 25 }} bordered
+                />
+              </Card>
+            )
+          },
+          {
+            key: 'pending',
+            label: <span><Tag color="orange" style={{ border: 'none', margin: 0, padding: '0 8px' }}>Dự bị ({filteredPending.length})</Tag></span>,
+            children: (
+              <Card styles={{ body: { padding: 0 } }}>
+                <Table
+                  columns={pendingColumns} dataSource={filteredPending} rowKey="id" loading={loading}
+                  size="middle" scroll={{ x: 1000 }} pagination={{ pageSize: 25 }} bordered
+                />
+              </Card>
+            )
+          },
+          {
+            key: 'non_party',
+            label: <span><Tag color="default" style={{ border: 'none', margin: 0, padding: '0 8px' }}>Chưa vào Đảng ({filteredNonParty.length})</Tag></span>,
+            children: (
+              <Card styles={{ body: { padding: 0 } }}>
+                <Table
+                  columns={nonPartyColumns} dataSource={filteredNonParty} rowKey="id" loading={loading}
+                  size="middle" scroll={{ x: 1000 }} pagination={{ pageSize: 25 }} bordered
+                />
+              </Card>
+            )
+          }
+        ]}
+      />
 
       {/* Modal Thêm / Sửa */}
       <Modal
-        title={editing ? 'Sửa đảng viên' : 'Thêm đảng viên'} open={modalOpen}
+        title={editing ? 'Sửa thông tin đảng viên' : 'Thêm đảng viên mới'} open={modalOpen}
         onOk={handleSave} onCancel={() => setModalOpen(false)}
         okText="Lưu" cancelText="Hủy" width={820}
       >
-        <Form form={form} layout="vertical" style={{ maxHeight: '62vh', overflowY: 'auto', paddingRight: 16 }}>
+        <Form form={form} layout="vertical" style={{ maxHeight: '60vh', overflowY: 'auto', paddingRight: 16 }}>
           <Form.Item name="hinh_anh" hidden><Input /></Form.Item>
           <Form.Item label="Hình ảnh">
             <Space align="start" size={16}>
@@ -342,7 +539,14 @@ const PartyMembersPage: React.FC = () => {
                 : <UserOutlined style={{ fontSize: 64, color: '#ccc' }} />}
             </div>
             <div style={{ textAlign: 'center', marginBottom: 16 }}>
-              {officialTag(selected.ngay_vao_dang_chinh_thuc)}
+              {selected.ngay_vao_dang_chinh_thuc ? (
+                <Tag color="green" style={{ fontSize: 13 }}>Chính thức</Tag>
+              ) : (
+                <Space direction="vertical" style={{ width: '100%' }}>
+                  <Tag color="orange" style={{ fontSize: 13 }}>Chưa chính thức (Dự bị)</Tag>
+                  <div>{renderCountdown(selected.ngay_vao_dang)}</div>
+                </Space>
+              )}
             </div>
             <Descriptions column={1} bordered size="small">
               <Descriptions.Item label="Đơn vị">{selected.unit_name || '-'}</Descriptions.Item>
@@ -371,6 +575,24 @@ const PartyMembersPage: React.FC = () => {
           </>
         )}
       </Drawer>
+
+      {/* Sổ tay Đảng viên */}
+      <Modal title="Sổ tay Đảng viên điện tử" open={handbookOpen} onCancel={() => setHandbookOpen(false)} footer={null} width={800}>
+        <div style={{ minHeight: 400, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fafafa', border: '1px dashed #d9d9d9', borderRadius: 8 }}>
+          <Typography.Text type="secondary">
+            (Nội dung Sổ tay Đảng viên sẽ hiển thị ở đây - Có thể đính kèm các tệp Word về Điều lệ Đảng)
+          </Typography.Text>
+        </div>
+      </Modal>
+
+      {/* Lý lịch Đảng viên */}
+      <Modal title={`Lý lịch Đảng viên - ${resumeStudent?.ho_ten || ''}`} open={resumeOpen} onCancel={() => setResumeOpen(false)} footer={null} width={800}>
+        <div style={{ minHeight: 400, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fafafa', border: '1px dashed #d9d9d9', borderRadius: 8 }}>
+          <Typography.Text type="secondary">
+            (Trang Word trống để hiển thị Lý lịch Đảng viên)
+          </Typography.Text>
+        </div>
+      </Modal>
     </div>
   );
 };
