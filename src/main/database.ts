@@ -116,7 +116,7 @@ export async function initTables(): Promise<void> {
     `CREATE TABLE IF NOT EXISTS units (
       id INT AUTO_INCREMENT PRIMARY KEY,
       name VARCHAR(255) NOT NULL,
-      type ENUM('tieu_doan', 'dai_doi', 'trung_doi') NOT NULL,
+      type ENUM('tieu_doan', 'dai_doi', 'trung_doi', 'tieu_doi') NOT NULL,
       parent_id INT NULL,
       FOREIGN KEY (parent_id) REFERENCES units(id) ON DELETE CASCADE
     )`,
@@ -247,6 +247,7 @@ export async function initTables(): Promise<void> {
 
   // Auto-migrate tables to add new columns
   const alters = [
+    "ALTER TABLE units MODIFY COLUMN type ENUM('tieu_doan', 'dai_doi', 'trung_doi', 'tieu_doi') NOT NULL",
     'ALTER TABLE students ADD COLUMN cccd_ngay_cap DATE NULL',
     'ALTER TABLE students ADD COLUMN cccd_noi_cap VARCHAR(255) NULL',
     'ALTER TABLE students ADD COLUMN bhyt VARCHAR(100) NULL',

@@ -70,19 +70,35 @@ const PartyMembersPage: React.FC = () => {
       value: td.id, label: td.name,
       children: units.filter((u) => u.type === 'dai_doi' && u.parent_id === td.id).map((dd) => ({
         value: dd.id, label: dd.name,
-        children: units.filter((u) => u.type === 'trung_doi' && u.parent_id === dd.id).map((trd) => ({
-          value: trd.id, label: trd.name,
-        })),
+        children: units.filter((u) => u.type === 'trung_doi' && u.parent_id === dd.id).map((trd) => {
+          const tieuDois = units.filter((u) => u.type === 'tieu_doi' && u.parent_id === trd.id);
+          return {
+            value: trd.id, label: trd.name,
+            children: tieuDois.length > 0 ? tieuDois.map((ti) => ({ value: ti.id, label: ti.name })) : undefined,
+          };
+        }),
       })),
     }));
   };
 
-  const getUnitSelectOptions = () =>
-    units.filter((u) => u.type === 'trung_doi').map((u) => {
-      const dd = units.find((p) => p.id === u.parent_id);
-      const td = dd ? units.find((p) => p.id === dd.parent_id) : null;
-      return { value: u.id, label: [td?.name, dd?.name, u.name].filter(Boolean).join(' > ') };
-    });
+  const getUnitSelectOptions = () => {
+    return units
+      .filter((u) => u.type === 'trung_doi' || u.type === 'tieu_doi')
+      .map((u) => {
+        let label = '';
+        if (u.type === 'tieu_doi') {
+          const trungDoi = units.find((p) => p.id === u.parent_id);
+          const daiDoi = trungDoi ? units.find((p) => p.id === trungDoi.parent_id) : null;
+          const tieuDoan = daiDoi ? units.find((p) => p.id === daiDoi.parent_id) : null;
+          label = [tieuDoan?.name, daiDoi?.name, trungDoi?.name, u.name].filter(Boolean).join(' > ');
+        } else {
+          const daiDoi = units.find((p) => p.id === u.parent_id);
+          const tieuDoan = daiDoi ? units.find((p) => p.id === daiDoi.parent_id) : null;
+          label = [tieuDoan?.name, daiDoi?.name, u.name].filter(Boolean).join(' > ');
+        }
+        return { value: u.id, label };
+      });
+  };
 
   const handleImageUpload = (file: File) => {
     if (file.size > 2 * 1024 * 1024) { message.error('Ảnh tối đa 2MB'); return false; }

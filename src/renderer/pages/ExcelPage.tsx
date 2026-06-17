@@ -73,11 +73,13 @@ const detectSheetUnit = (worksheet: any) => {
   let tieuDoan = '';
   let daiDoi = '';
   let trungDoi = '';
+  let tieuDoi = '';
 
   const parseUnitNames = (text: string) => {
     let td = '';
     let dd = '';
     let trd = '';
+    let ti = '';
 
     const segments = text.split(/[\n\-;]/);
     for (let segment of segments) {
@@ -104,8 +106,15 @@ const detectSheetUnit = (worksheet: any) => {
         td = 'Tiểu đoàn ' + tdMatch[1].trim().replace(/\s+/g, ' ');
         continue;
       }
+
+      // Detect Tieu Doi: "TIỂU ĐỘI 1" or "TỔ 1"
+      const tiMatch = segment.match(/(?:TIỂU\s+ĐỘI|TỔ)\s*([a-zA-Z0-9_\/\(\)\s\-+*]+)/i);
+      if (tiMatch) {
+        ti = 'Tiểu đội ' + tiMatch[1].trim().replace(/\s+/g, ' ');
+        continue;
+      }
     }
-    return { tieuDoan: td, daiDoi: dd, trungDoi: trd };
+    return { tieuDoan: td, daiDoi: dd, trungDoi: trd, tieuDoi: ti };
   };
 
   for (let r = 1; r <= 8; r++) {
@@ -119,11 +128,12 @@ const detectSheetUnit = (worksheet: any) => {
         if (parsed.tieuDoan && !tieuDoan) tieuDoan = parsed.tieuDoan;
         if (parsed.daiDoi && !daiDoi) daiDoi = parsed.daiDoi;
         if (parsed.trungDoi && !trungDoi) trungDoi = parsed.trungDoi;
+        if (parsed.tieuDoi && !tieuDoi) tieuDoi = parsed.tieuDoi;
       }
     }
   }
 
-  return { tieuDoan, daiDoi, trungDoi };
+  return { tieuDoan, daiDoi, trungDoi, tieuDoi };
 };
 
 const detectSheetMonth = (worksheet: any): number => {
@@ -139,6 +149,34 @@ const detectSheetMonth = (worksheet: any): number => {
     }
   }
   return 1;
+};
+
+const detectSheetNamHoc = (worksheet: any): number | undefined => {
+  for (let r = 1; r <= 15; r++) {
+    const row = worksheet.getRow(r);
+    if (!row) continue;
+    for (let c = 1; c <= 15; c++) {
+      const val = getCellString(row.getCell(c).value).toLowerCase();
+      if (val.includes('năm nhất') || val.includes('năm 1') || val.includes('năm thứ nhất') || val.includes('năm_nhất')) return 1;
+      if (val.includes('năm hai') || val.includes('năm 2') || val.includes('năm thứ hai') || val.includes('năm_hai')) return 2;
+      if (val.includes('năm ba') || val.includes('năm 3') || val.includes('năm thứ ba') || val.includes('năm_ba')) return 3;
+      if (val.includes('năm bốn') || val.includes('năm 4') || val.includes('năm thứ tư') || val.includes('năm thứ bốn') || val.includes('năm_bốn')) return 4;
+    }
+  }
+  return undefined;
+};
+
+const detectSheetHocKy = (worksheet: any): number | undefined => {
+  for (let r = 1; r <= 15; r++) {
+    const row = worksheet.getRow(r);
+    if (!row) continue;
+    for (let c = 1; c <= 15; c++) {
+      const val = getCellString(row.getCell(c).value).toLowerCase();
+      if (val.includes('học kỳ i') || val.includes('học kỳ 1') || val.includes('hk i') || val.includes('hk 1') || val.includes('học_kỳ_1') || val.includes('học kỳ lẻ')) return 1;
+      if (val.includes('học kỳ ii') || val.includes('học kỳ 2') || val.includes('hk ii') || val.includes('hk 2') || val.includes('học_kỳ_2') || val.includes('học kỳ chẵn')) return 2;
+    }
+  }
+  return undefined;
 };
 
 // ============ Template definitions ============
@@ -215,14 +253,18 @@ const ExcelPage: React.FC = () => {
   const [exporting, setExporting] = useState(false);
   const [importing, setImporting] = useState(false);
   const [importUnitId, setImportUnitId] = useState<number | undefined>();
+  const [importNamHoc, setImportNamHoc] = useState<number>(1);
+  const [importHocKy, setImportHocKy] = useState<number>(1);
   const [importResult, setImportResult] = useState<{ success: number; failed: number; details: string[] } | null>(null);
   const [importSheets, setImportSheets] = useState<{
     name: string;
     headers: string[];
     data: any[];
     columns: any[];
-    detectedUnit?: { tieuDoan?: string; daiDoi?: string; trungDoi?: string };
+    detectedUnit?: { tieuDoan?: string; daiDoi?: string; trungDoi?: string; tieuDoi?: string };
     detectedMonth?: number;
+    detectedNamHoc?: number;
+    detectedHocKy?: number;
     credits?: { [colName: string]: number };
   }[]>([]);
   const [activeImportSheet, setActiveImportSheet] = useState('0');
@@ -243,7 +285,13 @@ const ExcelPage: React.FC = () => {
           const trungDois = units.filter((u) => u.type === 'trung_doi' && u.parent_id === dd.id);
           return {
             value: dd.id, label: dd.name,
-            children: trungDois.map((trd) => ({ value: trd.id, label: trd.name })),
+            children: trungDois.map((trd) => {
+              const tieuDois = units.filter((u) => u.type === 'tieu_doi' && u.parent_id === trd.id);
+              return {
+                value: trd.id, label: trd.name,
+                children: tieuDois.length > 0 ? tieuDois.map((ti) => ({ value: ti.id, label: ti.name })) : undefined,
+              };
+            }),
           };
         }),
       };
@@ -488,15 +536,16 @@ const ExcelPage: React.FC = () => {
       tieuDoanName?: string,
       daiDoiName?: string,
       trungDoiName?: string,
+      tieuDoiName?: string,
       fallbackUnitId?: number
     ): Promise<number | undefined> => {
-      if (!trungDoiName && !daiDoiName && !tieuDoanName) {
+      if (!tieuDoiName && !trungDoiName && !daiDoiName && !tieuDoanName) {
         return fallbackUnitId;
       }
 
       const cleanStr = (s: string) => s.toLowerCase().replace(/\s+/g, '');
 
-      const findUnit = (name: string, type: 'tieu_doan' | 'dai_doi' | 'trung_doi', parentId: number | null) => {
+      const findUnit = (name: string, type: 'tieu_doan' | 'dai_doi' | 'trung_doi' | 'tieu_doi', parentId: number | null) => {
         return currentUnits.find(
           (u: any) =>
             u.type === type &&
@@ -533,6 +582,10 @@ const ExcelPage: React.FC = () => {
             } else if (fallbackUnit.type === 'trung_doi') {
               const p = currentUnits.find((u: any) => u.id === fallbackUnit.parent_id);
               parentId = p ? p.parent_id : null;
+            } else if (fallbackUnit.type === 'tieu_doi') {
+              const trd = currentUnits.find((u: any) => u.id === fallbackUnit.parent_id);
+              const p = trd ? currentUnits.find((u: any) => u.id === trd.parent_id) : null;
+              parentId = p ? p.parent_id : null;
             }
           }
         }
@@ -563,6 +616,8 @@ const ExcelPage: React.FC = () => {
               parentId = fallbackUnit.id;
             } else if (fallbackUnit.type === 'trung_doi') {
               parentId = fallbackUnit.parent_id;
+            } else if (fallbackUnit.type === 'tieu_doi') {
+              parentId = fallbackUnit.parent_id;
             }
           }
         }
@@ -581,10 +636,36 @@ const ExcelPage: React.FC = () => {
             console.error('Failed to create trung_doi unit', e);
           }
         }
-        if (trd) return trd.id;
+        if (trd) parentId = trd.id;
       }
 
-      return fallbackUnitId;
+      // 4. Resolve tieuDoi
+      if (tieuDoiName) {
+        if (parentId === null && fallbackUnitId) {
+          const fallbackUnit = currentUnits.find((u: any) => u.id === fallbackUnitId);
+          if (fallbackUnit && fallbackUnit.type === 'trung_doi') {
+            parentId = fallbackUnit.id;
+          }
+        }
+
+        let ti = findUnit(tieuDoiName, 'tieu_doi', parentId);
+        if (!ti && parentId === null) {
+          ti = currentUnits.find((u: any) => u.type === 'tieu_doi' && cleanStr(u.name) === cleanStr(tieuDoiName));
+        }
+
+        if (!ti) {
+          try {
+            const res = await createUnit({ name: tieuDoiName, type: 'tieu_doi', parent_id: parentId });
+            ti = { id: res.id, name: tieuDoiName, type: 'tieu_doi', parent_id: parentId };
+            currentUnits.push(ti);
+          } catch (e: any) {
+            console.error('Failed to create tieu_doi unit', e);
+          }
+        }
+        if (ti) return ti.id;
+      }
+
+      return parentId || fallbackUnitId;
     };
 
     // Lấy toàn bộ danh sách học viên đã có trong DB (để map tên → id trên toàn hệ thống)
@@ -613,8 +694,12 @@ const ExcelPage: React.FC = () => {
         du?.tieuDoan,
         du?.daiDoi,
         du?.trungDoi,
+        du?.tieuDoi,
         importUnitId
       )) || importUnitId;
+
+      const targetNamHoc = sheet.detectedNamHoc || importNamHoc;
+      const targetHocKy = sheet.detectedHocKy || importHocKy;
 
       // ====== Sheet: Thông tin học viên ======
       if (sn.includes('thông tin') || sn.includes('học viên')) {
@@ -709,7 +794,7 @@ const ExcelPage: React.FC = () => {
 
               await saveDisciplineScores([{
                 student_id: sid,
-                nam_hoc: 1,
+                nam_hoc: targetNamHoc,
                 thang: detectedMonth,
                 tuan_1: val1,
                 tuan_2: val2,
@@ -751,7 +836,7 @@ const ExcelPage: React.FC = () => {
                   try {
                     await saveDisciplineScores([{
                       student_id: sid,
-                      nam_hoc: 1,
+                      nam_hoc: targetNamHoc,
                       thang,
                       diem_thang: numVal,
                       xep_loai: getXepLoai(numVal),
@@ -795,7 +880,7 @@ const ExcelPage: React.FC = () => {
               }
               const mon_hoc = k.replace(/\s*\(\d+\s*tc?\)\s*$/i, '').trim();
               return {
-                student_id: sid, nam_hoc: 1, hoc_ky: 1,
+                student_id: sid, nam_hoc: targetNamHoc, hoc_ky: targetHocKy,
                 mon_hoc, tin_chi, diem: Number(row[k]),
               };
             });
@@ -846,6 +931,8 @@ const ExcelPage: React.FC = () => {
                 giang_vien: giangVienCol ? str(row[giangVienCol]) : null,
                 ghi_chu_thi: ghiChuThiCol ? str(row[ghiChuThiCol]) : null,
                 ghi_chu: ghiChuCol ? str(row[ghiChuCol]) : null,
+                nam_hoc: targetNamHoc,
+                hoc_ky: targetHocKy,
               });
               sheetOk++; success++;
             } catch { failed++; }
@@ -866,7 +953,12 @@ const ExcelPage: React.FC = () => {
                 const dateMatch = cvVal.match(/(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})/);
                 if (dateMatch) {
                   const ngay = `${dateMatch[3]}-${dateMatch[2].padStart(2, '0')}-${dateMatch[1].padStart(2, '0')}`;
-                  await createAbsence({ student_id: sid, ngay_vang: ngay });
+                  await createAbsence({
+                    student_id: sid,
+                    ngay_vang: ngay,
+                    nam_hoc: targetNamHoc,
+                    hoc_ky: targetHocKy,
+                  });
                   sheetOk++; success++;
                 }
               } catch { failed++; }
@@ -885,7 +977,14 @@ const ExcelPage: React.FC = () => {
                   const lyDo = val.replace(/ngày\s*\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{4}/i, '').replace(/[()]/g, '').replace(/lý do:\s*/i, '').trim();
                   if (dateMatch) {
                     const ngay = `${dateMatch[3]}-${dateMatch[2].padStart(2, '0')}-${dateMatch[1].padStart(2, '0')}`;
-                    await createViolation({ student_id: sid, loai: loai as string, ngay, ly_do: lyDo || undefined });
+                    await createViolation({
+                      student_id: sid,
+                      loai: loai as string,
+                      ngay,
+                      ly_do: lyDo || undefined,
+                      nam_hoc: targetNamHoc,
+                      hoc_ky: targetHocKy,
+                    });
                     sheetOk++; success++;
                   }
                 } catch { failed++; }
@@ -951,11 +1050,19 @@ const ExcelPage: React.FC = () => {
 
   const getUnitSelectOptions = () => {
     return units
-      .filter((u) => u.type === 'trung_doi')
+      .filter((u) => u.type === 'trung_doi' || u.type === 'tieu_doi')
       .map((u) => {
-        const daiDoi = units.find((p) => p.id === u.parent_id);
-        const tieuDoan = daiDoi ? units.find((p) => p.id === daiDoi.parent_id) : null;
-        const label = [tieuDoan?.name, daiDoi?.name, u.name].filter(Boolean).join(' > ');
+        let label = '';
+        if (u.type === 'tieu_doi') {
+          const trungDoi = units.find((p) => p.id === u.parent_id);
+          const daiDoi = trungDoi ? units.find((p) => p.id === trungDoi.parent_id) : null;
+          const tieuDoan = daiDoi ? units.find((p) => p.id === daiDoi.parent_id) : null;
+          label = [tieuDoan?.name, daiDoi?.name, trungDoi?.name, u.name].filter(Boolean).join(' > ');
+        } else {
+          const daiDoi = units.find((p) => p.id === u.parent_id);
+          const tieuDoan = daiDoi ? units.find((p) => p.id === daiDoi.parent_id) : null;
+          label = [tieuDoan?.name, daiDoi?.name, u.name].filter(Boolean).join(' > ');
+        }
         return { value: u.id, label };
       });
   };

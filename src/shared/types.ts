@@ -30,7 +30,7 @@ export interface AuthStatus {
 }
 
 // ============ Đơn vị tổ chức ============
-export type UnitType = 'tieu_doan' | 'dai_doi' | 'trung_doi';
+export type UnitType = 'tieu_doan' | 'dai_doi' | 'trung_doi' | 'tieu_doi';
 
 export interface Unit {
   id: number;

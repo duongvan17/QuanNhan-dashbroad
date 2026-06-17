@@ -17,6 +17,7 @@ const unitTypeLabels: Record<UnitType, string> = {
   tieu_doan: 'Tiểu đoàn',
   dai_doi: 'Đại đội',
   trung_doi: 'Trung đội',
+  tieu_doi: 'Tiểu đội',
 };
 
 const UnitsPage: React.FC = () => {
@@ -69,7 +70,7 @@ const UnitsPage: React.FC = () => {
       .filter((u) => u.parent_id === parentId)
       .map((u) => {
         const count = subtreeStudentCount(u.id);
-        const tagColor = u.type === 'tieu_doan' ? 'blue' : u.type === 'dai_doi' ? 'cyan' : 'geekblue';
+        const tagColor = u.type === 'tieu_doan' ? 'blue' : u.type === 'dai_doi' ? 'cyan' : u.type === 'trung_doi' ? 'geekblue' : 'purple';
         return {
         key: u.id,
         title: (
@@ -114,7 +115,8 @@ const UnitsPage: React.FC = () => {
   const getParentOptions = (type: UnitType) => {
     if (type === 'tieu_doan') return [];
     if (type === 'dai_doi') return units.filter((u) => u.type === 'tieu_doan');
-    return units.filter((u) => u.type === 'dai_doi');
+    if (type === 'trung_doi') return units.filter((u) => u.type === 'dai_doi');
+    return units.filter((u) => u.type === 'trung_doi');
   };
 
   const openAdd = () => {
@@ -176,7 +178,7 @@ const UnitsPage: React.FC = () => {
       </Space>
 
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
-        <Col xs={12} sm={6}>
+        <Col xs={12} sm={4}>
           <Card>
             <Statistic
               title="Tiểu đoàn" value={countByType('tieu_doan')}
@@ -184,7 +186,7 @@ const UnitsPage: React.FC = () => {
             />
           </Card>
         </Col>
-        <Col xs={12} sm={6}>
+        <Col xs={12} sm={4}>
           <Card>
             <Statistic
               title="Đại đội" value={countByType('dai_doi')}
@@ -192,7 +194,7 @@ const UnitsPage: React.FC = () => {
             />
           </Card>
         </Col>
-        <Col xs={12} sm={6}>
+        <Col xs={12} sm={4}>
           <Card>
             <Statistic
               title="Trung đội" value={countByType('trung_doi')}
@@ -200,7 +202,15 @@ const UnitsPage: React.FC = () => {
             />
           </Card>
         </Col>
-        <Col xs={12} sm={6}>
+        <Col xs={12} sm={4}>
+          <Card>
+            <Statistic
+              title="Tiểu đội" value={countByType('tieu_doi')}
+              prefix={<TeamOutlined />} styles={{ content: { color: '#eb2f96', fontSize: 26 } }}
+            />
+          </Card>
+        </Col>
+        <Col xs={12} sm={8}>
           <Card>
             <Statistic
               title="Tổng học viên" value={totalStudents}
@@ -237,13 +247,20 @@ const UnitsPage: React.FC = () => {
               <Select.Option value="tieu_doan">Tiểu đoàn</Select.Option>
               <Select.Option value="dai_doi">Đại đội</Select.Option>
               <Select.Option value="trung_doi">Trung đội</Select.Option>
+              <Select.Option value="tieu_doi">Tiểu đội</Select.Option>
             </Select>
           </Form.Item>
 
           {typeValue && typeValue !== 'tieu_doan' && !editingUnit && (
             <Form.Item
               name="parent_id"
-              label={typeValue === 'dai_doi' ? 'Thuộc Tiểu đoàn' : 'Thuộc Đại đội'}
+              label={
+                typeValue === 'dai_doi'
+                  ? 'Thuộc Tiểu đoàn'
+                  : typeValue === 'trung_doi'
+                  ? 'Thuộc Đại đội'
+                  : 'Thuộc Trung đội'
+              }
               rules={[{ required: true, message: 'Chọn đơn vị cha' }]}
             >
               <Select placeholder="Chọn đơn vị cha">

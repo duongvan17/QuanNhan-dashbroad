@@ -279,7 +279,13 @@ const AcademicPage: React.FC = () => {
           const trungDois = units.filter((u) => u.type === 'trung_doi' && u.parent_id === dd.id);
           return {
             value: dd.id, label: dd.name,
-            children: trungDois.map((trd) => ({ value: trd.id, label: trd.name })),
+            children: trungDois.map((trd) => {
+              const tieuDois = units.filter((u) => u.type === 'tieu_doi' && u.parent_id === trd.id);
+              return {
+                value: trd.id, label: trd.name,
+                children: tieuDois.length > 0 ? tieuDois.map((ti) => ({ value: ti.id, label: ti.name })) : undefined,
+              };
+            }),
           };
         }),
       };

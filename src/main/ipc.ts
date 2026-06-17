@@ -235,10 +235,21 @@ export function registerIpcHandlers(): void {
           [s.mon_hoc, s.tin_chi, s.diem, s.id]
         );
       } else {
-        await query(
-          'INSERT INTO academic_scores (student_id, nam_hoc, hoc_ky, mon_hoc, tin_chi, diem) VALUES (?,?,?,?,?,?)',
-          [s.student_id, s.nam_hoc, s.hoc_ky, s.mon_hoc, s.tin_chi, s.diem]
+        const existing = await query<any[]>(
+          'SELECT id FROM academic_scores WHERE student_id=? AND nam_hoc=? AND hoc_ky=? AND mon_hoc=?',
+          [s.student_id, s.nam_hoc, s.hoc_ky, s.mon_hoc]
         );
+        if (existing.length > 0) {
+          await query(
+            'UPDATE academic_scores SET tin_chi=?, diem=? WHERE id=?',
+            [s.tin_chi, s.diem, existing[0].id]
+          );
+        } else {
+          await query(
+            'INSERT INTO academic_scores (student_id, nam_hoc, hoc_ky, mon_hoc, tin_chi, diem) VALUES (?,?,?,?,?,?)',
+            [s.student_id, s.nam_hoc, s.hoc_ky, s.mon_hoc, s.tin_chi, s.diem]
+          );
+        }
       }
     }
     return { success: true };
@@ -303,10 +314,21 @@ export function registerIpcHandlers(): void {
           [s.tuan_1, s.tuan_2, s.tuan_3, s.tuan_4, s.tuan_5, diem_thang, xep_loai, s.id]
         );
       } else {
-        await query(
-          'INSERT INTO discipline_scores (student_id, nam_hoc, thang, tuan_1, tuan_2, tuan_3, tuan_4, tuan_5, diem_thang, xep_loai) VALUES (?,?,?,?,?,?,?,?,?,?)',
-          [s.student_id, s.nam_hoc, s.thang, s.tuan_1, s.tuan_2, s.tuan_3, s.tuan_4, s.tuan_5, diem_thang, xep_loai]
+        const existing = await query<any[]>(
+          'SELECT id FROM discipline_scores WHERE student_id=? AND nam_hoc=? AND thang=?',
+          [s.student_id, s.nam_hoc, s.thang]
         );
+        if (existing.length > 0) {
+          await query(
+            'UPDATE discipline_scores SET tuan_1=?, tuan_2=?, tuan_3=?, tuan_4=?, tuan_5=?, diem_thang=?, xep_loai=? WHERE id=?',
+            [s.tuan_1, s.tuan_2, s.tuan_3, s.tuan_4, s.tuan_5, diem_thang, xep_loai, existing[0].id]
+          );
+        } else {
+          await query(
+            'INSERT INTO discipline_scores (student_id, nam_hoc, thang, tuan_1, tuan_2, tuan_3, tuan_4, tuan_5, diem_thang, xep_loai) VALUES (?,?,?,?,?,?,?,?,?,?)',
+            [s.student_id, s.nam_hoc, s.thang, s.tuan_1, s.tuan_2, s.tuan_3, s.tuan_4, s.tuan_5, diem_thang, xep_loai]
+          );
+        }
       }
     }
     return { success: true };

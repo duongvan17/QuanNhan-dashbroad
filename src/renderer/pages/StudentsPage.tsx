@@ -82,7 +82,7 @@ const StudentsPage: React.FC = () => {
   useEffect(() => { loadUnits(); }, []);
   useEffect(() => { loadStudents(); }, [loadStudents]);
 
-  // Build cascader options: Tiểu đoàn > Đại đội > Trung đội
+  // Build cascader options: Tiểu đoàn > Đại đội > Trung đội > Tiểu đội
   const buildCascaderOptions = () => {
     const tieuDoans = units.filter((u) => u.type === 'tieu_doan');
     return tieuDoans.map((td) => {
@@ -95,10 +95,14 @@ const StudentsPage: React.FC = () => {
           return {
             value: dd.id,
             label: dd.name,
-            children: trungDois.map((trd) => ({
-              value: trd.id,
-              label: trd.name,
-            })),
+            children: trungDois.map((trd) => {
+              const tieuDois = units.filter((u) => u.type === 'tieu_doi' && u.parent_id === trd.id);
+              return {
+                value: trd.id,
+                label: trd.name,
+                children: tieuDois.length > 0 ? tieuDois.map((ti) => ({ value: ti.id, label: ti.name })) : undefined,
+              };
+            }),
           };
         }),
       };
@@ -107,11 +111,19 @@ const StudentsPage: React.FC = () => {
 
   const getUnitSelectOptions = () => {
     return units
-      .filter((u) => u.type === 'trung_doi')
+      .filter((u) => u.type === 'trung_doi' || u.type === 'tieu_doi')
       .map((u) => {
-        const daiDoi = units.find((p) => p.id === u.parent_id);
-        const tieuDoan = daiDoi ? units.find((p) => p.id === daiDoi.parent_id) : null;
-        const label = [tieuDoan?.name, daiDoi?.name, u.name].filter(Boolean).join(' > ');
+        let label = '';
+        if (u.type === 'tieu_doi') {
+          const trungDoi = units.find((p) => p.id === u.parent_id);
+          const daiDoi = trungDoi ? units.find((p) => p.id === trungDoi.parent_id) : null;
+          const tieuDoan = daiDoi ? units.find((p) => p.id === daiDoi.parent_id) : null;
+          label = [tieuDoan?.name, daiDoi?.name, trungDoi?.name, u.name].filter(Boolean).join(' > ');
+        } else {
+          const daiDoi = units.find((p) => p.id === u.parent_id);
+          const tieuDoan = daiDoi ? units.find((p) => p.id === daiDoi.parent_id) : null;
+          label = [tieuDoan?.name, daiDoi?.name, u.name].filter(Boolean).join(' > ');
+        }
         return { value: u.id, label };
       });
   };
