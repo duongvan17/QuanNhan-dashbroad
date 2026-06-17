@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   Card, Table, Button, Modal, Form, Input, Select, DatePicker, Space, Typography,
-  Popconfirm, App, Drawer, Descriptions, Cascader, Tooltip, Image, Upload,
+  Popconfirm, App, Drawer, Descriptions, Cascader, Tooltip, Image, Upload, Divider,
 } from 'antd';
 import {
   PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined,
@@ -334,7 +334,7 @@ const StudentsPage: React.FC = () => {
               </Space>
             </Space>
           </Form.Item>
-          <Title level={5}>Thông tin cơ bản</Title>
+          <Divider orientation="left" style={{ fontWeight: 600, color: '#1677ff', borderColor: '#d9d9d9' }}>Thông tin cá nhân</Divider>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 16px' }}>
             <Form.Item name="unit_id" label="Đơn vị (Trung đội)" rules={[{ required: true, message: 'Chọn đơn vị' }]}>
               <Select placeholder="Chọn trung đội" options={getUnitSelectOptions()} showSearch optionFilterProp="label" />
@@ -370,8 +370,10 @@ const StudentsPage: React.FC = () => {
               <Input />
             </Form.Item>
           </div>
-
-          <Title level={5} style={{ marginTop: 16 }}>Thông tin Bố</Title>
+ 
+          <Divider orientation="left" style={{ fontWeight: 600, color: '#1677ff', borderColor: '#d9d9d9', marginTop: 24 }}>Thông tin thân nhân</Divider>
+          
+          <Title level={5} style={{ fontSize: 14, color: '#555', marginBottom: 12 }}>Thông tin Bố</Title>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 16px' }}>
             <Form.Item name="bo_ho_ten" label="Họ tên bố">
               <Input />
@@ -386,8 +388,8 @@ const StudentsPage: React.FC = () => {
               <Input />
             </Form.Item>
           </div>
-
-          <Title level={5} style={{ marginTop: 16 }}>Thông tin Mẹ</Title>
+ 
+          <Title level={5} style={{ fontSize: 14, color: '#555', marginTop: 16, marginBottom: 12 }}>Thông tin Mẹ</Title>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 16px' }}>
             <Form.Item name="me_ho_ten" label="Họ tên mẹ">
               <Input />
@@ -419,6 +421,7 @@ const StudentsPage: React.FC = () => {
               <Image src={selectedStudent.hinh_anh} width={150} style={{ borderRadius: 8 }} />
             </div>
           )}
+          <Divider orientation="left" style={{ fontWeight: 600, color: '#1677ff', margin: '12px 0' }}>Thông tin cá nhân</Divider>
           <Descriptions column={1} bordered size="small">
             <Descriptions.Item label="Họ và tên">{selectedStudent.ho_ten}</Descriptions.Item>
             <Descriptions.Item label="Đơn vị">{selectedStudent.unit_name}</Descriptions.Item>
@@ -450,6 +453,10 @@ const StudentsPage: React.FC = () => {
                 <span style={{ color: '#aaa' }}>Chưa có giải thưởng riêng</span>
               )}
             </Descriptions.Item>
+          </Descriptions>
+
+          <Divider orientation="left" style={{ fontWeight: 600, color: '#1677ff', margin: '24px 0 12px 0' }}>Thông tin thân nhân</Divider>
+          <Descriptions column={1} bordered size="small">
             <Descriptions.Item label="Bố - Họ tên">{selectedStudent.bo_ho_ten || '-'}</Descriptions.Item>
             <Descriptions.Item label="Bố - Nghề nghiệp">{selectedStudent.bo_nghe_nghiep || '-'}</Descriptions.Item>
             <Descriptions.Item label="Bố - Nơi ở">{selectedStudent.bo_noi_o || '-'}</Descriptions.Item>

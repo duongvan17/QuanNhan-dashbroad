@@ -10,6 +10,7 @@ import {
 import {
   getStudents, createStudent, getUnits, getAbsences, getAcademicScores, getDisciplineScores, getAwards,
   saveAcademicScores, saveDisciplineScores, createAbsence, createViolation, saveAward,
+  createUnit,
 } from '../services/api';
 import { useAuth } from '../auth/AuthContext';
 import type { Unit } from '../../shared/types';
@@ -51,6 +52,93 @@ const downloadWorkbook = async (workbook: any, filename: string) => {
   a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
+};
+
+const getCellString = (val: any): string => {
+  if (val === null || val === undefined) return '';
+  if (typeof val === 'object') {
+    if (val.text) return String(val.text);
+    if (val.richText) {
+      return val.richText.map((rt: any) => rt.text || '').join('');
+    }
+    if (val.result !== undefined) {
+      return getCellString(val.result);
+    }
+    return '';
+  }
+  return String(val);
+};
+
+const detectSheetUnit = (worksheet: any) => {
+  let tieuDoan = '';
+  let daiDoi = '';
+  let trungDoi = '';
+
+  const parseUnitNames = (text: string) => {
+    let td = '';
+    let dd = '';
+    let trd = '';
+
+    const segments = text.split(/[\n\-;]/);
+    for (let segment of segments) {
+      segment = segment.trim();
+      if (!segment) continue;
+
+      // Detect Trung Doi: "TRUNG ĐỘI 1 (CT)" or "TĐ 1"
+      const trdMatch = segment.match(/(?:TRUNG\s+ĐỘI|TĐỘI|T\.ĐỘI|TĐ)\s*([a-zA-Z0-9_\/\(\)\s\-+*]+)/i);
+      if (trdMatch) {
+        trd = 'Trung đội ' + trdMatch[1].trim().replace(/\s+/g, ' ');
+        continue;
+      }
+
+      // Detect Dai Doi: "ĐẠI ĐỘI 1" or "ĐĐ 1" or "C1"
+      const ddMatch = segment.match(/(?:ĐẠI\s+ĐỘI|ĐĐỘI|Đ\.ĐỘI|ĐĐ|C)\s*([a-zA-Z0-9_\/\(\)\s\-+*]+)/i);
+      if (ddMatch) {
+        dd = 'Đại đội ' + ddMatch[1].trim().replace(/\s+/g, ' ');
+        continue;
+      }
+
+      // Detect Tieu Doan: "TIỂU ĐOÀN 1" or "TĐOÀN 1" or "D1"
+      const tdMatch = segment.match(/(?:TIỂU\s+ĐOÀN|TĐOÀN|T\.ĐOÀN|D)\s*([a-zA-Z0-9_\/\(\)\s\-+*]+)/i);
+      if (tdMatch) {
+        td = 'Tiểu đoàn ' + tdMatch[1].trim().replace(/\s+/g, ' ');
+        continue;
+      }
+    }
+    return { tieuDoan: td, daiDoi: dd, trungDoi: trd };
+  };
+
+  for (let r = 1; r <= 8; r++) {
+    const row = worksheet.getRow(r);
+    if (!row) continue;
+    for (let c = 1; c <= 15; c++) {
+      const cell = row.getCell(c);
+      const val = getCellString(cell.value);
+      if (val) {
+        const parsed = parseUnitNames(val);
+        if (parsed.tieuDoan && !tieuDoan) tieuDoan = parsed.tieuDoan;
+        if (parsed.daiDoi && !daiDoi) daiDoi = parsed.daiDoi;
+        if (parsed.trungDoi && !trungDoi) trungDoi = parsed.trungDoi;
+      }
+    }
+  }
+
+  return { tieuDoan, daiDoi, trungDoi };
+};
+
+const detectSheetMonth = (worksheet: any): number => {
+  for (let r = 1; r <= 8; r++) {
+    const row = worksheet.getRow(r);
+    if (!row) continue;
+    for (let c = 1; c <= 15; c++) {
+      const val = getCellString(row.getCell(c).value);
+      if (val) {
+        const mMatch = val.match(/tháng\s*(\d+)/i);
+        if (mMatch) return Number(mMatch[1]);
+      }
+    }
+  }
+  return 1;
 };
 
 // ============ Template definitions ============
@@ -128,7 +216,15 @@ const ExcelPage: React.FC = () => {
   const [importing, setImporting] = useState(false);
   const [importUnitId, setImportUnitId] = useState<number | undefined>();
   const [importResult, setImportResult] = useState<{ success: number; failed: number; details: string[] } | null>(null);
-  const [importSheets, setImportSheets] = useState<{ name: string; headers: string[]; data: any[]; columns: any[] }[]>([]);
+  const [importSheets, setImportSheets] = useState<{
+    name: string;
+    headers: string[];
+    data: any[];
+    columns: any[];
+    detectedUnit?: { tieuDoan?: string; daiDoi?: string; trungDoi?: string };
+    detectedMonth?: number;
+    credits?: { [colName: string]: number };
+  }[]>([]);
   const [activeImportSheet, setActiveImportSheet] = useState('0');
 
   React.useEffect(() => { loadUnits(); }, []);
@@ -359,13 +455,19 @@ const ExcelPage: React.FC = () => {
 
   // ========== IMPORT ALL SHEETS TO DB ==========
   const handleImportToDB = async () => {
-    if (!importUnitId) {
-      message.error('Chọn đơn vị (Trung đội) trước khi import!');
-      return;
-    }
     if (importSheets.length === 0) {
       message.error('Không có dữ liệu để import!');
       return;
+    }
+
+    // Check if we can resolve a unit for all sheets
+    for (const sheet of importSheets) {
+      const du = sheet.detectedUnit;
+      const hasDetected = du && (du.trungDoi || du.daiDoi || du.tieuDoan);
+      if (!hasDetected && !importUnitId) {
+        message.error(`Sheet "${sheet.name}" không chứa thông tin đơn vị và bạn chưa chọn đơn vị dự phòng!`);
+        return;
+      }
     }
 
     setImporting(true);
@@ -374,15 +476,128 @@ const ExcelPage: React.FC = () => {
     let failed = 0;
     const details: string[] = [];
 
-    // Lấy danh sách học viên đã có trong DB (để map tên → id)
+    // Load the current units from DB (to make sure we have the latest)
+    let currentUnits = [...units];
+    try {
+      currentUnits = await getUnits();
+      setUnits(currentUnits);
+    } catch { /* */ }
+
+    // Helper to find or create unit path
+    const findOrCreateUnitPath = async (
+      tieuDoanName?: string,
+      daiDoiName?: string,
+      trungDoiName?: string,
+      fallbackUnitId?: number
+    ): Promise<number | undefined> => {
+      if (!trungDoiName && !daiDoiName && !tieuDoanName) {
+        return fallbackUnitId;
+      }
+
+      const cleanStr = (s: string) => s.toLowerCase().replace(/\s+/g, '');
+
+      const findUnit = (name: string, type: 'tieu_doan' | 'dai_doi' | 'trung_doi', parentId: number | null) => {
+        return currentUnits.find(
+          (u: any) =>
+            u.type === type &&
+            cleanStr(u.name) === cleanStr(name) &&
+            (parentId === null || u.parent_id === parentId)
+        );
+      };
+
+      // 1. Resolve tieuDoan
+      let parentId: number | null = null;
+      if (tieuDoanName) {
+        let td = currentUnits.find((u: any) => u.type === 'tieu_doan' && cleanStr(u.name) === cleanStr(tieuDoanName));
+        if (!td) {
+          try {
+            const res = await createUnit({ name: tieuDoanName, type: 'tieu_doan', parent_id: null });
+            td = { id: res.id, name: tieuDoanName, type: 'tieu_doan', parent_id: null };
+            currentUnits.push(td);
+          } catch (e: any) {
+            console.error('Failed to create tieu_doan unit', e);
+          }
+        }
+        if (td) parentId = td.id;
+      }
+
+      // 2. Resolve daiDoi
+      if (daiDoiName) {
+        if (parentId === null && fallbackUnitId) {
+          const fallbackUnit = currentUnits.find((u: any) => u.id === fallbackUnitId);
+          if (fallbackUnit) {
+            if (fallbackUnit.type === 'tieu_doan') {
+              parentId = fallbackUnit.id;
+            } else if (fallbackUnit.type === 'dai_doi') {
+              parentId = fallbackUnit.parent_id;
+            } else if (fallbackUnit.type === 'trung_doi') {
+              const p = currentUnits.find((u: any) => u.id === fallbackUnit.parent_id);
+              parentId = p ? p.parent_id : null;
+            }
+          }
+        }
+
+        let dd = findUnit(daiDoiName, 'dai_doi', parentId);
+        if (!dd && parentId === null) {
+          dd = currentUnits.find((u: any) => u.type === 'dai_doi' && cleanStr(u.name) === cleanStr(daiDoiName));
+        }
+
+        if (!dd) {
+          try {
+            const res = await createUnit({ name: daiDoiName, type: 'dai_doi', parent_id: parentId });
+            dd = { id: res.id, name: daiDoiName, type: 'dai_doi', parent_id: parentId };
+            currentUnits.push(dd);
+          } catch (e: any) {
+            console.error('Failed to create dai_doi unit', e);
+          }
+        }
+        if (dd) parentId = dd.id;
+      }
+
+      // 3. Resolve trungDoi
+      if (trungDoiName) {
+        if (parentId === null && fallbackUnitId) {
+          const fallbackUnit = currentUnits.find((u: any) => u.id === fallbackUnitId);
+          if (fallbackUnit) {
+            if (fallbackUnit.type === 'dai_doi') {
+              parentId = fallbackUnit.id;
+            } else if (fallbackUnit.type === 'trung_doi') {
+              parentId = fallbackUnit.parent_id;
+            }
+          }
+        }
+
+        let trd = findUnit(trungDoiName, 'trung_doi', parentId);
+        if (!trd && parentId === null) {
+          trd = currentUnits.find((u: any) => u.type === 'trung_doi' && cleanStr(u.name) === cleanStr(trungDoiName));
+        }
+
+        if (!trd) {
+          try {
+            const res = await createUnit({ name: trungDoiName, type: 'trung_doi', parent_id: parentId });
+            trd = { id: res.id, name: trungDoiName, type: 'trung_doi', parent_id: parentId };
+            currentUnits.push(trd);
+          } catch (e: any) {
+            console.error('Failed to create trung_doi unit', e);
+          }
+        }
+        if (trd) return trd.id;
+      }
+
+      return fallbackUnitId;
+    };
+
+    // Lấy toàn bộ danh sách học viên đã có trong DB (để map tên → id trên toàn hệ thống)
     let existingStudents: any[] = [];
     try {
-      const res = await getStudents({ unit_id: importUnitId, pageSize: 10000 });
+      const res = await getStudents({ pageSize: 100000 });
       existingStudents = res.data;
     } catch { /* */ }
 
-    const findStudentId = (name: string) => {
-      const s = existingStudents.find((st: any) => st.ho_ten === name);
+    const findStudentId = (name: string, targetUnitId: number) => {
+      const clean = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ');
+      const targetName = clean(name);
+      const s = existingStudents.find((st: any) => clean(st.ho_ten) === targetName && st.unit_id === targetUnitId);
       return s?.id;
     };
 
@@ -391,6 +606,15 @@ const ExcelPage: React.FC = () => {
     for (const sheet of importSheets) {
       const h = sheet.headers;
       const sn = sheet.name.toLowerCase();
+
+      // Nhận diện đơn vị của sheet và tìm/tạo trong CSDL
+      const du = sheet.detectedUnit;
+      const targetUnitId = (await findOrCreateUnitPath(
+        du?.tieuDoan,
+        du?.daiDoi,
+        du?.trungDoi,
+        importUnitId
+      )) || importUnitId;
 
       // ====== Sheet: Thông tin học viên ======
       if (sn.includes('thông tin') || sn.includes('học viên')) {
@@ -414,7 +638,7 @@ const ExcelPage: React.FC = () => {
           if (!hoTen) continue;
           try {
             const res = await createStudent({
-              unit_id: importUnitId,
+              unit_id: targetUnitId,
               ho_ten: hoTen,
               ngay_sinh: parseDate(row[dobCol!]),
               cccd: str(row[cccdCol!]),
@@ -434,7 +658,7 @@ const ExcelPage: React.FC = () => {
               me_ngay_sinh: meIdx >= 0 && meIdx + 2 < h.length ? parseDate(row[h[meIdx + 2]]) : null,
               me_noi_o: meIdx >= 0 && meIdx + 3 < h.length ? str(row[h[meIdx + 3]]) : null,
             });
-            existingStudents.push({ id: res.id, ho_ten: hoTen });
+            existingStudents.push({ id: res.id, ho_ten: hoTen, unit_id: targetUnitId });
             sheetOk++;
             success++;
           } catch { failed++; }
@@ -448,27 +672,96 @@ const ExcelPage: React.FC = () => {
         const nameCol = h.find((c) => c.toLowerCase().includes('họ và tên'));
         if (!nameCol) continue;
         let sheetOk = 0;
-        for (const row of sheet.data) {
-          const hoTen = str(row[nameCol]);
-          if (!hoTen) continue;
-          const sid = findStudentId(hoTen);
-          if (!sid) { failed++; continue; }
-          try {
-            const t1Col = h.find((c) => c.toLowerCase().includes('tuần 01') || c.toLowerCase().includes('tuần 1'));
-            const t2Col = h.find((c) => c.toLowerCase().includes('tuần 02') || c.toLowerCase().includes('tuần 2'));
-            const t3Col = h.find((c) => c.toLowerCase().includes('tuần 03') || c.toLowerCase().includes('tuần 3'));
-            const t4Col = h.find((c) => c.toLowerCase().includes('tuần 04') || c.toLowerCase().includes('tuần 4'));
-            const t5Col = h.find((c) => c.toLowerCase().includes('tuần 05') || c.toLowerCase().includes('tuần 5'));
-            await saveDisciplineScores([{
-              student_id: sid, nam_hoc: 1, thang: 1,
-              tuan_1: row[t1Col!] != null && row[t1Col!] !== '' ? Number(row[t1Col!]) : null,
-              tuan_2: row[t2Col!] != null && row[t2Col!] !== '' ? Number(row[t2Col!]) : null,
-              tuan_3: row[t3Col!] != null && row[t3Col!] !== '' ? Number(row[t3Col!]) : null,
-              tuan_4: row[t4Col!] != null && row[t4Col!] !== '' ? Number(row[t4Col!]) : null,
-              tuan_5: row[t5Col!] != null && row[t5Col!] !== '' ? Number(row[t5Col!]) : null,
-            }]);
-            sheetOk++; success++;
-          } catch { failed++; }
+        const hasWeekly = h.some((c) => c.toLowerCase().includes('tuần'));
+
+        if (hasWeekly) {
+          // Weekly detail sheet (Mục 2)
+          for (const row of sheet.data) {
+            const hoTen = str(row[nameCol]);
+            if (!hoTen) continue;
+            const sid = findStudentId(hoTen, targetUnitId);
+            if (!sid) { failed++; continue; }
+            try {
+              const t1Col = h.find((c) => c.toLowerCase().includes('tuần 01') || c.toLowerCase().includes('tuần 1'));
+              const t2Col = h.find((c) => c.toLowerCase().includes('tuần 02') || c.toLowerCase().includes('tuần 2'));
+              const t3Col = h.find((c) => c.toLowerCase().includes('tuần 03') || c.toLowerCase().includes('tuần 3'));
+              const t4Col = h.find((c) => c.toLowerCase().includes('tuần 04') || c.toLowerCase().includes('tuần 4'));
+              const t5Col = h.find((c) => c.toLowerCase().includes('tuần 05') || c.toLowerCase().includes('tuần 5'));
+              
+              const val1 = row[t1Col!] != null && row[t1Col!] !== '' ? Number(row[t1Col!]) : null;
+              const val2 = row[t2Col!] != null && row[t2Col!] !== '' ? Number(row[t2Col!]) : null;
+              const val3 = row[t3Col!] != null && row[t3Col!] !== '' ? Number(row[t3Col!]) : null;
+              const val4 = row[t4Col!] != null && row[t4Col!] !== '' ? Number(row[t4Col!]) : null;
+              const val5 = row[t5Col!] != null && row[t5Col!] !== '' ? Number(row[t5Col!]) : null;
+
+              const vals = [val1, val2, val3, val4, val5].filter((v) => v !== null) as number[];
+              const diem_thang = vals.length > 0 ? Math.round((vals.reduce((s, v) => s + v, 0) / vals.length) * 100) / 100 : null;
+
+              const getXepLoai = (avg: number | null) => {
+                if (avg == null) return null;
+                if (avg >= 8) return 'Giỏi';
+                if (avg >= 7.2) return 'Khá';
+                if (avg >= 5) return 'Trung bình';
+                return 'Yếu';
+              };
+
+              const detectedMonth = sheet.detectedMonth || 1;
+
+              await saveDisciplineScores([{
+                student_id: sid,
+                nam_hoc: 1,
+                thang: detectedMonth,
+                tuan_1: val1,
+                tuan_2: val2,
+                tuan_3: val3,
+                tuan_4: val4,
+                tuan_5: val5,
+                diem_thang,
+                xep_loai: getXepLoai(diem_thang),
+              }]);
+              sheetOk++; success++;
+            } catch { failed++; }
+          }
+        } else {
+          // Monthly summary sheet (Mục 1)
+          const monthCols = h.filter((c) => c.toLowerCase().includes('tháng'));
+
+          for (const row of sheet.data) {
+            const hoTen = str(row[nameCol]);
+            if (!hoTen) continue;
+            const sid = findStudentId(hoTen, targetUnitId);
+            if (!sid) { failed++; continue; }
+
+            for (const col of monthCols) {
+              const val = row[col];
+              if (val != null && val !== '') {
+                const numVal = Number(val);
+                if (!isNaN(numVal)) {
+                  const mMatch = col.match(/tháng\s*(\d+)/i);
+                  const thang = mMatch ? Number(mMatch[1]) : 1;
+
+                  const getXepLoai = (avg: number | null) => {
+                    if (avg == null) return null;
+                    if (avg >= 8) return 'Giỏi';
+                    if (avg >= 7.2) return 'Khá';
+                    if (avg >= 5) return 'Trung bình';
+                    return 'Yếu';
+                  };
+
+                  try {
+                    await saveDisciplineScores([{
+                      student_id: sid,
+                      nam_hoc: 1,
+                      thang,
+                      diem_thang: numVal,
+                      xep_loai: getXepLoai(numVal),
+                    }]);
+                    sheetOk++; success++;
+                  } catch { failed++; }
+                }
+              }
+            }
+          }
         }
         details.push(`Điểm rèn luyện: ${sheetOk} thành công`);
         continue;
@@ -476,16 +769,14 @@ const ExcelPage: React.FC = () => {
 
       // ====== Sheet: Điểm học tập ======
       if (sn.includes('học tập') || sn.includes('điểm học')) {
-        // Format đặc biệt: mỗi dòng = 1 học viên, các cột = điểm từng môn
         const nameCol = h.find((c) => c.toLowerCase().includes('họ và tên'));
         if (!nameCol) continue;
         let sheetOk = 0;
         for (const row of sheet.data) {
           const hoTen = str(row[nameCol]);
           if (!hoTen) continue;
-          const sid = findStudentId(hoTen);
+          const sid = findStudentId(hoTen, targetUnitId);
           if (!sid) { failed++; continue; }
-          // Các cột số (điểm) - bỏ STT, Họ tên, TÍN CHỈ, Trung bình, Xếp loại
           const scoreKeys = h.filter((k) => {
             const kl = k.toLowerCase();
             return !kl.includes('stt') && !kl.includes('họ') && !kl.includes('tín chỉ')
@@ -495,10 +786,13 @@ const ExcelPage: React.FC = () => {
           const scores = scoreKeys
             .filter((k) => row[k] != null && row[k] !== '' && !isNaN(Number(row[k])))
             .map((k) => {
-              // Tên môn = chính header trong Excel (đã đổi sang tên thật trong template)
-              // Tín chỉ: parse "Toán (3tc)" -> 3, mặc định 1
-              const tcMatch = k.match(/\((\d+)\s*tc?\)/i);
-              const tin_chi = tcMatch ? Number(tcMatch[1]) : 1;
+              let tin_chi = 1;
+              if (sheet.credits && sheet.credits[k] !== undefined) {
+                tin_chi = sheet.credits[k];
+              } else {
+                const tcMatch = k.match(/\((\d+)\s*tc?\)/i);
+                if (tcMatch) tin_chi = Number(tcMatch[1]);
+              }
               const mon_hoc = k.replace(/\s*\(\d+\s*tc?\)\s*$/i, '').trim();
               return {
                 student_id: sid, nam_hoc: 1, hoc_ky: 1,
@@ -536,7 +830,7 @@ const ExcelPage: React.FC = () => {
           for (const row of sheet.data) {
             const hoTen = str(row[nameCol]);
             if (!hoTen) continue;
-            const sid = findStudentId(hoTen);
+            const sid = findStudentId(hoTen, targetUnitId);
             if (!sid) { failed++; continue; }
 
             const ngay = parseDate(row[ngayVangCol]);
@@ -561,7 +855,7 @@ const ExcelPage: React.FC = () => {
             const hoTen = str(row[nameCol]) || lastStudentName;
             if (!hoTen) continue;
             if (str(row[nameCol])) lastStudentName = hoTen;
-            const sid = findStudentId(hoTen);
+            const sid = findStudentId(hoTen, targetUnitId);
             if (!sid) continue;
 
             // Công vắng
@@ -611,7 +905,7 @@ const ExcelPage: React.FC = () => {
         for (const row of sheet.data) {
           const hoTen = str(row[nameCol]);
           if (!hoTen) continue;
-          const sid = findStudentId(hoTen);
+          const sid = findStudentId(hoTen, targetUnitId);
           if (!sid) { failed++; continue; }
           const n1Col = h.find((c) => c.toLowerCase().includes('năm nhất') || c.toLowerCase().includes('n1') || c.toLowerCase().includes('điểm n1'));
           const n2Col = h.find((c) => c.toLowerCase().includes('năm hai') || c.toLowerCase().includes('n2') || c.toLowerCase().includes('điểm n2'));
@@ -645,6 +939,9 @@ const ExcelPage: React.FC = () => {
         continue;
       }
     }
+
+    // Refresh units state after creation
+    await loadUnits();
 
     setImportResult({ success, failed, details });
     setImporting(false);
@@ -681,47 +978,124 @@ const ExcelPage: React.FC = () => {
         const sheets: typeof importSheets = [];
 
         for (const worksheet of workbook.worksheets) {
-          const headers: string[] = [];
-          const rows: any[] = [];
+          const headersMap: { [colIndex: number]: string } = {};
+          let nameColIdx = -1;
+          let hasSplitName = false;
           let headerRow = 0;
 
           worksheet.eachRow((row, rowNumber) => {
             const values = row.values as any[];
+            if (!values) return;
             const rowStr = values.map((v) => String(v || '')).join(' ').toLowerCase();
-            if (headerRow === 0 && (rowStr.includes('stt') || rowStr.includes('họ và tên'))) {
+            if (headerRow === 0 && (rowStr.includes('stt') || rowStr.includes('họ và tên') || rowStr.includes('họ tên'))) {
               headerRow = rowNumber;
               for (let i = 1; i < values.length; i++) {
-                const val = String(values[i] || '').trim();
-                if (val) headers.push(val);
+                const val = String(values[i] || '').trim().replace(/\s+/g, ' ');
+                if (!val) {
+                  headersMap[i] = `Col_${i}`;
+                } else {
+                  const valLower = val.toLowerCase();
+                  if (valLower.includes('họ và tên') || valLower.includes('họ tên')) {
+                    if (nameColIdx === -1) {
+                      nameColIdx = i;
+                      headersMap[i] = 'Họ và tên';
+                    } else {
+                      headersMap[i] = 'Tên';
+                      hasSplitName = true;
+                    }
+                  } else if (valLower === 'họ' || valLower === 'họ đệm' || valLower === 'họ và tên đệm') {
+                    nameColIdx = i;
+                    headersMap[i] = 'Họ và tên';
+                  } else if (valLower === 'tên') {
+                    headersMap[i] = 'Tên';
+                    hasSplitName = true;
+                  } else {
+                    headersMap[i] = val;
+                  }
+                }
               }
             }
           });
 
-          if (headerRow === 0 || headers.length === 0) continue;
+          if (headerRow === 0 || Object.keys(headersMap).length === 0) continue;
 
+          // Detect credits if it is a study scores sheet
+          const sn = worksheet.name.toLowerCase();
+          const isAcademic = sn.includes('học tập') || sn.includes('điểm học');
+          let hasCreditsRow = false;
+          const creditsMap: { [colName: string]: number } = {};
+
+          if (isAcademic) {
+            const nextRow = worksheet.getRow(headerRow + 1);
+            if (nextRow) {
+              const values = nextRow.values as any[];
+              if (values && values.length > 0) {
+                for (let i = 1; i < values.length; i++) {
+                  const cellVal = values[i];
+                  const num = Number(cellVal);
+                  if (cellVal !== null && cellVal !== '' && !isNaN(num)) {
+                    const colName = headersMap[i];
+                    if (colName && !colName.startsWith('Col_') && !colName.includes('Họ và tên') && !colName.includes('Tên') && !colName.includes('STT') && !colName.includes('TB') && !colName.includes('Hạng') && !colName.includes('Xếp loại')) {
+                      creditsMap[colName] = num;
+                      hasCreditsRow = true;
+                    }
+                  }
+                }
+              }
+            }
+          }
+
+          const rows: any[] = [];
           worksheet.eachRow((row, rowNumber) => {
             if (rowNumber <= headerRow) return;
+            if (hasCreditsRow && rowNumber === headerRow + 1) return;
+
             const values = row.values as any[];
             if (!values || values.length <= 1) return;
 
             const rowData: any = { _key: `${worksheet.name}-${rowNumber}` };
-            headers.forEach((h, idx) => {
-              rowData[h] = values[idx + 1] ?? '';
+            Object.keys(headersMap).forEach((colIdxStr) => {
+              const colIdx = Number(colIdxStr);
+              const h = headersMap[colIdx];
+              rowData[h] = values[colIdx] ?? '';
             });
 
-            const hasData = headers.some((h) => rowData[h] !== '' && rowData[h] != null);
+            // Merge Họ và tên and Tên if split
+            if (hasSplitName && rowData['Họ và tên'] !== undefined && rowData['Tên'] !== undefined) {
+              rowData['Họ và tên'] = (String(rowData['Họ và tên']).trim() + ' ' + String(rowData['Tên']).trim()).replace(/\s+/g, ' ');
+            }
+
+            const hasData = Object.values(headersMap).some((h) => rowData[h] !== '' && rowData[h] != null && !h.startsWith('Col_'));
             if (hasData) rows.push(rowData);
           });
 
+          const validHeaders: string[] = [];
+          for (let i = 1; i <= worksheet.columnCount; i++) {
+            const h = headersMap[i];
+            if (h && !h.startsWith('Col_') && h !== 'Tên') {
+              validHeaders.push(h);
+            }
+          }
+
           if (rows.length > 0) {
-            const columns = headers.map((h) => ({
+            const columns = validHeaders.map((h) => ({
               title: h, dataIndex: h, width: 160, ellipsis: true,
               render: (v: any) => {
                 if (v instanceof Date) return v.toLocaleDateString('vi-VN');
                 return String(v ?? '');
               },
             }));
-            sheets.push({ name: worksheet.name, headers, data: rows, columns });
+            const detectedUnit = detectSheetUnit(worksheet);
+            const detectedMonth = detectSheetMonth(worksheet);
+            sheets.push({
+              name: worksheet.name,
+              headers: validHeaders,
+              data: rows,
+              columns,
+              detectedUnit,
+              detectedMonth,
+              credits: creditsMap
+            });
           }
         }
 
@@ -1010,14 +1384,42 @@ const ExcelPage: React.FC = () => {
                       key: String(idx),
                       label: `${sheet.name} (${sheet.data.length})`,
                       children: (
-                        <Table
-                          columns={sheet.columns}
-                          dataSource={sheet.data}
-                          rowKey="_key"
-                          size="small"
-                          scroll={{ x: sheet.columns.length * 160, y: 350 }}
-                          pagination={{ pageSize: 50, showTotal: (t) => `${t} dòng` }}
-                        />
+                        <div>
+                          {sheet.detectedUnit && (sheet.detectedUnit.tieuDoan || sheet.detectedUnit.daiDoi || sheet.detectedUnit.trungDoi) ? (
+                            <Alert
+                              type="success"
+                              showIcon
+                              style={{ marginBottom: 12 }}
+                              message={
+                                <span>
+                                  Tự động nhận diện đơn vị: {' '}
+                                  <strong>
+                                    {[
+                                      sheet.detectedUnit.tieuDoan,
+                                      sheet.detectedUnit.daiDoi,
+                                      sheet.detectedUnit.trungDoi
+                                    ].filter(Boolean).join(' > ')}
+                                  </strong>
+                                </span>
+                              }
+                            />
+                          ) : (
+                            <Alert
+                              type="warning"
+                              showIcon
+                              style={{ marginBottom: 12 }}
+                              message="Không nhận diện được tiêu đề đơn vị trong sheet này. Hệ thống sẽ sử dụng đơn vị được chọn ở trên làm dự phòng."
+                            />
+                          )}
+                          <Table
+                            columns={sheet.columns}
+                            dataSource={sheet.data}
+                            rowKey="_key"
+                            size="small"
+                            scroll={{ x: sheet.columns.length * 160, y: 350 }}
+                            pagination={{ pageSize: 50, showTotal: (t) => `${t} dòng` }}
+                          />
+                        </div>
                       ),
                     }))}
                   />

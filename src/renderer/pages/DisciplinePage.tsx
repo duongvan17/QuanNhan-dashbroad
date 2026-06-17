@@ -125,6 +125,11 @@ const DisciplinePage: React.FC = () => {
     const rows = Array.from(studentMap.values()).map((entry) => {
       const yearScores = entry.scores.filter(s => s.nam_hoc === filters.nam_hoc);
       
+      const getMonthScore = (m: number) => {
+        const match = yearScores.find(s => s.thang === m);
+        return match?.diem_thang != null ? Number(match.diem_thang) : null;
+      };
+
       const hk1Scores = yearScores.filter(s => [8, 9, 10, 11, 12, 1].includes(s.thang) && s.diem_thang != null);
       const hk1Avg = hk1Scores.length > 0
         ? Math.round((hk1Scores.reduce((sum, s) => sum + Number(s.diem_thang), 0) / hk1Scores.length) * 100) / 100
@@ -150,6 +155,18 @@ const DisciplinePage: React.FC = () => {
         student_id: entry.student_id,
         ho_ten: entry.ho_ten,
         unit_id: entry.unit_id,
+        m8: getMonthScore(8),
+        m9: getMonthScore(9),
+        m10: getMonthScore(10),
+        m11: getMonthScore(11),
+        m12: getMonthScore(12),
+        m1: getMonthScore(1),
+        m2: getMonthScore(2),
+        m3: getMonthScore(3),
+        m4: getMonthScore(4),
+        m5: getMonthScore(5),
+        m6: getMonthScore(6),
+        m7: getMonthScore(7),
         hk1Avg,
         hk1Xl: getAvgXepLoai(hk1Avg),
         hk2Avg,
@@ -211,8 +228,13 @@ const DisciplinePage: React.FC = () => {
       const rows = scores.map((s, i) => [i + 1, s.ho_ten, s.tuan_1 ?? '', s.tuan_2 ?? '', s.tuan_3 ?? '', s.tuan_4 ?? '', s.tuan_5 ?? '', s.diem_thang ?? '', s.xep_loai ?? '']);
       navigator.clipboard.writeText([headers, ...rows].map((r) => r.join('\t')).join('\n'));
     } else {
-      const headers = ['Hạng', 'Họ và tên', 'Đơn vị', 'Hạng TĐ', 'Hạng ĐĐ', 'TB Học kỳ I', 'XL Học kỳ I', 'TB Học kỳ II', 'XL Học kỳ II', 'TB Cả năm', 'XL Cả năm', 'TB Toàn khóa', 'XL Toàn khóa'];
-      const rows = buildAggregatedData().map((r) => [r.rankOverall, r.ho_ten, r.unitStr, r.rankPlatoon, r.rankCompany, r.hk1Avg ?? '', r.hk1Xl, r.hk2Avg ?? '', r.hk2Xl, r.yearAvg ?? '', r.yearXl, r.courseAvg ?? '', r.courseXl]);
+      const headers = ['Hạng', 'Họ và tên', 'Đơn vị', 'Hạng TĐ', 'Hạng ĐĐ', 'T8', 'T9', 'T10', 'T11', 'T12', 'T1', 'TB Học kỳ I', 'XL Học kỳ I', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'TB Học kỳ II', 'XL Học kỳ II', 'TB Cả năm', 'XL Cả năm', 'TB Toàn khóa', 'XL Toàn khóa'];
+      const rows = buildAggregatedData().map((r) => [
+        r.rankOverall, r.ho_ten, r.unitStr, r.rankPlatoon, r.rankCompany,
+        r.m8 ?? '', r.m9 ?? '', r.m10 ?? '', r.m11 ?? '', r.m12 ?? '', r.m1 ?? '', r.hk1Avg ?? '', r.hk1Xl,
+        r.m2 ?? '', r.m3 ?? '', r.m4 ?? '', r.m5 ?? '', r.m6 ?? '', r.m7 ?? '', r.hk2Avg ?? '', r.hk2Xl,
+        r.yearAvg ?? '', r.yearXl, r.courseAvg ?? '', r.courseXl
+      ]);
       navigator.clipboard.writeText([headers, ...rows].map((r) => r.join('\t')).join('\n'));
     }
     message.success('Đã copy - paste vào Excel');
@@ -262,6 +284,12 @@ const DisciplinePage: React.FC = () => {
     {
       title: 'Học kỳ I',
       children: [
+        { title: 'T8', dataIndex: 'm8', width: 60, align: 'center' as const, render: renderDiem },
+        { title: 'T9', dataIndex: 'm9', width: 60, align: 'center' as const, render: renderDiem },
+        { title: 'T10', dataIndex: 'm10', width: 60, align: 'center' as const, render: renderDiem },
+        { title: 'T11', dataIndex: 'm11', width: 60, align: 'center' as const, render: renderDiem },
+        { title: 'T12', dataIndex: 'm12', width: 60, align: 'center' as const, render: renderDiem },
+        { title: 'T1', dataIndex: 'm1', width: 60, align: 'center' as const, render: renderDiem },
         { title: 'Điểm TB', dataIndex: 'hk1Avg', width: 90, align: 'center' as const, render: renderDiem },
         { title: 'Xếp loại', dataIndex: 'hk1Xl', width: 100, align: 'center' as const, render: getXepLoaiTag }
       ]
@@ -269,6 +297,12 @@ const DisciplinePage: React.FC = () => {
     {
       title: 'Học kỳ II',
       children: [
+        { title: 'T2', dataIndex: 'm2', width: 60, align: 'center' as const, render: renderDiem },
+        { title: 'T3', dataIndex: 'm3', width: 60, align: 'center' as const, render: renderDiem },
+        { title: 'T4', dataIndex: 'm4', width: 60, align: 'center' as const, render: renderDiem },
+        { title: 'T5', dataIndex: 'm5', width: 60, align: 'center' as const, render: renderDiem },
+        { title: 'T6', dataIndex: 'm6', width: 60, align: 'center' as const, render: renderDiem },
+        { title: 'T7', dataIndex: 'm7', width: 60, align: 'center' as const, render: renderDiem },
         { title: 'Điểm TB', dataIndex: 'hk2Avg', width: 90, align: 'center' as const, render: renderDiem },
         { title: 'Xếp loại', dataIndex: 'hk2Xl', width: 100, align: 'center' as const, render: getXepLoaiTag }
       ]
@@ -295,8 +329,8 @@ const DisciplinePage: React.FC = () => {
         <Title level={4} style={{ margin: 0 }}><StarOutlined /> Điểm rèn luyện</Title>
         <Space wrap>
           <Radio.Group value={viewMode} onChange={(e) => setViewMode(e.target.value)}>
-            <Radio.Button value="monthly">Hàng tháng</Radio.Button>
-            <Radio.Button value="aggregated">Tổng hợp rèn luyện</Radio.Button>
+            <Radio.Button value="monthly">Xem điểm rèn luyện tháng (Mục 2)</Radio.Button>
+            <Radio.Button value="aggregated">Xem điểm của năm (Mục 1)</Radio.Button>
           </Radio.Group>
           <Cascader options={buildCascaderOptions()} onChange={handleFilterUnit}
             placeholder="Lọc theo đơn vị" changeOnSelect allowClear style={{ width: 250 }} />
@@ -328,7 +362,7 @@ const DisciplinePage: React.FC = () => {
             scroll={{ x: 1000 }} pagination={false} bordered />
         ) : (
           <Table columns={aggregatedColumns} dataSource={buildAggregatedData()} rowKey="key" loading={loading} size="middle"
-            scroll={{ x: 1100 }} pagination={{ pageSize: 20 }} bordered />
+            scroll={{ x: 1800 }} pagination={{ pageSize: 20 }} bordered />
         )}
       </Card>
 
