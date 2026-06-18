@@ -102,6 +102,9 @@ const AcademicPage: React.FC = () => {
   const [editingScore, setEditingScore] = useState<any>(null);
   const [searchText, setSearchText] = useState('');
   const [rankOpen, setRankOpen] = useState(false);
+  const [localSubjects, setLocalSubjects] = useState<{ name: string; credits: number }[]>([]);
+  const [addSubjectModalOpen, setAddSubjectModalOpen] = useState(false);
+  const [subjectForm] = Form.useForm();
 
   // Rankings variables
   const [rankTab, setRankTab] = useState<'semester' | 'course'>('semester');
@@ -126,6 +129,13 @@ const AcademicPage: React.FC = () => {
       loadAllTimeScores();
     }
   }, [rankOpen]);
+
+  useEffect(() => {
+    if (scores.length > 0 && localSubjects.length > 0) {
+      const dbSubjects = new Set(scores.map(s => s.mon_hoc.toLowerCase().trim()));
+      setLocalSubjects(prev => prev.filter(sub => !dbSubjects.has(sub.name.toLowerCase().trim())));
+    }
+  }, [scores]);
 
   const getSemesterLabel = (namHoc: number, hocKy: number) => {
     const romanMap: Record<number, string[]> = {
@@ -319,6 +329,25 @@ const AcademicPage: React.FC = () => {
     }
   };
 
+  const handleCreateSubjectColumn = () => {
+    subjectForm.validateFields().then((values) => {
+      const name = values.name.trim();
+      const credits = values.credits || 1;
+      if (name) {
+        const existsInDb = scores.some(s => s.mon_hoc.toLowerCase().trim() === name.toLowerCase().trim());
+        const existsInLocal = localSubjects.some(s => s.name.toLowerCase().trim() === name.toLowerCase().trim());
+        if (existsInDb || existsInLocal) {
+          message.warning('Môn học này đã tồn tại trong bảng!');
+          return;
+        }
+        setLocalSubjects(prev => [...prev, { name, credits }]);
+        setAddSubjectModalOpen(false);
+        subjectForm.resetFields();
+        message.success(`Đã thêm cột môn học "${name}"`);
+      }
+    });
+  };
+
   const handleEditScore = (studentId: number, hoTen: string, subject: string, scoreData: any) => {
     setEditingScore({ studentId, hoTen, subject, ...scoreData });
     editForm.setFieldsValue({
@@ -378,6 +407,15 @@ const AcademicPage: React.FC = () => {
       const tc = Number(s.tin_chi);
       if (subjectCredit[s.mon_hoc] == null && tc > 0) subjectCredit[s.mon_hoc] = tc;
     });
+    
+    // Thêm các môn học từ localSubjects
+    localSubjects.forEach((sub) => {
+      subjectSet.add(sub.name);
+      if (subjectCredit[sub.name] == null) {
+        subjectCredit[sub.name] = sub.credits;
+      }
+    });
+
     const subjects = Array.from(subjectSet).sort();
 
     // Group theo student
@@ -543,9 +581,14 @@ const AcademicPage: React.FC = () => {
           <Button icon={<TrophyOutlined />} onClick={() => setRankOpen(true)}>Bảng xếp hạng</Button>
           <Button icon={<CopyOutlined />} onClick={handleCopy}>Copy bảng</Button>
           {isAdmin && (
-            <Button type="primary" icon={<PlusOutlined />} onClick={() => { form.resetFields(); setModalOpen(true); }}>
-              Thêm điểm
-            </Button>
+            <>
+              <Button type="primary" ghost icon={<BookOutlined />} onClick={() => { subjectForm.resetFields(); setAddSubjectModalOpen(true); }}>
+                Thêm môn học
+              </Button>
+              <Button type="primary" icon={<PlusOutlined />} onClick={() => { form.resetFields(); setModalOpen(true); }}>
+                Thêm điểm
+              </Button>
+            </>
           )}
         </Space>
       </Space>
@@ -706,6 +749,19 @@ const AcademicPage: React.FC = () => {
             },
           ]}
         />
+      </Modal>
+
+      {/* Add Subject Modal */}
+      <Modal title="Thêm môn học mới (Thêm cột)" open={addSubjectModalOpen} onOk={handleCreateSubjectColumn} onCancel={() => setAddSubjectModalOpen(false)}
+        okText="Thêm cột" cancelText="Hủy" width={400}>
+        <Form form={subjectForm} layout="vertical">
+          <Form.Item name="name" label="Tên môn học" rules={[{ required: true, message: 'Nhập tên môn học' }]}>
+            <Input placeholder="VD: Triết học Mác - Lênin" />
+          </Form.Item>
+          <Form.Item name="credits" label="Số tín chỉ (tùy chọn)" initialValue={2} rules={[{ required: true, message: 'Nhập số tín chỉ' }]}>
+            <InputNumber min={1} max={10} style={{ width: '100%' }} />
+          </Form.Item>
+        </Form>
       </Modal>
     </div>
   );

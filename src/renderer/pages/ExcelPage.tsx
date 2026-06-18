@@ -354,9 +354,31 @@ const ExcelPage: React.FC = () => {
     });
   };
 
+  const fetchExistingSubjects = async (): Promise<{ name: string; credits: number }[]> => {
+    try {
+      const data = await getAcademicScores({});
+      const subjectMap = new Map<string, number>();
+      data.forEach((s: any) => {
+        const name = s.mon_hoc;
+        const tc = Number(s.tin_chi) || 1;
+        if (!subjectMap.has(name) || (subjectMap.get(name) === 1 && tc > 1)) {
+          subjectMap.set(name, tc);
+        }
+      });
+      return Array.from(subjectMap.entries()).map(([name, credits]) => ({ name, credits }));
+    } catch {
+      return [];
+    }
+  };
+
   // ========== Build sheet Điểm học tập (format đặc biệt theo gốc) ==========
-  const buildAcademicSheet = (ws: any) => {
-    const colCount = 17;
+  const buildAcademicSheet = (ws: any, existingSubjects: { name: string; credits: number }[] = []) => {
+    const subjectsList = existingSubjects.length > 0 
+      ? existingSubjects 
+      : Array.from({ length: 8 }, (_, i) => ({ name: `Tên môn ${i + 1}`, credits: 1 }));
+
+    const subjectCount = subjectsList.length;
+    const colCount = 2 + subjectCount + 2; // STT + Họ tên + subjects + TB + Xếp loại
 
     // Title
     ws.mergeCells(1, 1, 1, colCount);
@@ -394,21 +416,22 @@ const ExcelPage: React.FC = () => {
     const subHeaders: any[] = new Array(colCount).fill(null);
     subHeaders[2] = 'MÔN HỌC';
     subHeaders[3] = 'HC';
-    subHeaders[11] = 'Trung bình';
-    subHeaders[12] = 'Xếp loại';
+    subHeaders[2 + subjectCount] = 'Trung bình';
+    subHeaders[2 + subjectCount + 1] = 'Xếp loại';
     const shr = ws.addRow(subHeaders);
     shr.eachCell((cell: any, colNumber: number) => {
       if (cell.value) headerStyle(cell);
     });
 
-    // Header row: STT, Họ và tên, (8 cột tên môn - sửa thành tên thật rồi mới import),
-    // Trung bình, Xếp loại. Format tên môn: "Toán cao cấp (3tc)" để parse được tín chỉ.
+    // Header row: STT, Họ và tên, các cột tên môn, Trung bình, Xếp loại.
     const mainHeaders: any[] = new Array(colCount).fill(null);
     mainHeaders[0] = 'STT';
     mainHeaders[1] = 'Họ và tên';
-    for (let i = 2; i < 10; i++) mainHeaders[i] = `Tên môn ${i - 1} (1tc)`;
-    mainHeaders[10] = 'Trung bình';
-    mainHeaders[11] = 'Xếp loại';
+    subjectsList.forEach((sub, idx) => {
+      mainHeaders[2 + idx] = `${sub.name} (${sub.credits}tc)`;
+    });
+    mainHeaders[2 + subjectCount] = 'Trung bình';
+    mainHeaders[2 + subjectCount + 1] = 'Xếp loại';
     const mhr = ws.addRow(mainHeaders);
     mhr.height = 32;
     mhr.eachCell((cell: any) => {
@@ -417,7 +440,7 @@ const ExcelPage: React.FC = () => {
     });
 
     // Note row
-    const noteR = ws.addRow(['', 'CHÚ Ý: Sửa "Tên môn N (1tc)" thành tên môn thật + tín chỉ (vd "Toán cao cấp (3tc)") trước khi import']);
+    const noteR = ws.addRow(['', 'CHÚ Ý: Sửa hoặc thêm các cột "Tên môn (Số_tc)" thành môn học thật (vd "Toán cao cấp (3tc)") trước khi import']);
     ws.mergeCells(noteR.number, 2, noteR.number, colCount);
     noteR.getCell(2).font = { italic: true, color: { argb: 'FF888888' }, size: 11 };
 
@@ -432,10 +455,9 @@ const ExcelPage: React.FC = () => {
     // Column widths
     ws.getColumn(1).width = 8;
     ws.getColumn(2).width = 28;
-    for (let i = 3; i <= 10; i++) ws.getColumn(i).width = 14;
-    ws.getColumn(11).width = 12;
-    ws.getColumn(12).width = 12;
-    for (let i = 13; i <= 17; i++) ws.getColumn(i).width = 10;
+    for (let i = 3; i <= 2 + subjectCount; i++) ws.getColumn(i).width = 16;
+    ws.getColumn(2 + subjectCount).width = 12;
+    ws.getColumn(2 + subjectCount + 1).width = 12;
   };
 
   // ========== DOWNLOAD TEMPLATE ==========
@@ -448,7 +470,8 @@ const ExcelPage: React.FC = () => {
       const ws = workbook.addWorksheet(template.sheetName);
 
       if ((template as any).custom) {
-        buildAcademicSheet(ws);
+        const existingSubjects = await fetchExistingSubjects();
+        buildAcademicSheet(ws, existingSubjects);
       } else {
         buildSheet(ws, template, ExcelJS);
       }
@@ -467,10 +490,12 @@ const ExcelPage: React.FC = () => {
       const workbook = new ExcelJS.Workbook();
       workbook.creator = 'Quản Lý Quân Nhân';
 
+      const existingSubjects = await fetchExistingSubjects();
+
       for (const template of templates) {
         const ws = workbook.addWorksheet(template.sheetName);
         if ((template as any).custom) {
-          buildAcademicSheet(ws);
+          buildAcademicSheet(ws, existingSubjects);
         } else {
           buildSheet(ws, template, ExcelJS);
         }
@@ -863,10 +888,10 @@ const ExcelPage: React.FC = () => {
           const sid = findStudentId(hoTen, targetUnitId);
           if (!sid) { failed++; continue; }
           const scoreKeys = h.filter((k) => {
-            const kl = k.toLowerCase();
+            const kl = k.toLowerCase().trim();
             return !kl.includes('stt') && !kl.includes('họ') && !kl.includes('tín chỉ')
               && !kl.includes('trung bình') && !kl.includes('xếp loại')
-              && !kl.includes('hc') && !kl.includes('môn học');
+              && kl !== 'hc' && kl !== 'môn học';
           });
           const scores = scoreKeys
             .filter((k) => row[k] != null && row[k] !== '' && !isNaN(Number(row[k])))
@@ -1136,13 +1161,16 @@ const ExcelPage: React.FC = () => {
             const nextRow = worksheet.getRow(headerRow + 1);
             if (nextRow) {
               const values = nextRow.values as any[];
-              if (values && values.length > 0) {
+              const nameVal = nameColIdx !== -1 && values ? str(values[nameColIdx]) : null;
+              const isStudentRow = nameVal && isNaN(Number(nameVal)) && !nameVal.toLowerCase().includes('chú ý') && !nameVal.toLowerCase().includes('tín chỉ');
+              
+              if (values && values.length > 0 && !isStudentRow) {
                 for (let i = 1; i < values.length; i++) {
                   const cellVal = values[i];
                   const num = Number(cellVal);
                   if (cellVal !== null && cellVal !== '' && !isNaN(num)) {
                     const colName = headersMap[i];
-                    if (colName && !colName.startsWith('Col_') && !colName.includes('Họ và tên') && !colName.includes('Tên') && !colName.includes('STT') && !colName.includes('TB') && !colName.includes('Hạng') && !colName.includes('Xếp loại')) {
+                    if (colName && !colName.startsWith('Col_') && !colName.includes('Họ và tên') && !colName.includes('Tên') && !colName.includes('STT') && !colName.includes('TB') && !colName.includes('Hạng') && !colName.includes('Xếp loại') && !colName.includes('Ghi chú')) {
                       creditsMap[colName] = num;
                       hasCreditsRow = true;
                     }
@@ -1403,7 +1431,7 @@ const ExcelPage: React.FC = () => {
                               {t.headers.length > 6 && <Tag style={{ fontSize: 12 }}>+{t.headers.length - 6} cột</Tag>}
                             </>
                           ) : (
-                            <Tag style={{ fontSize: 12 }}>STT, Họ và tên, TÍN CHỈ, Môn 1-8, TB, Xếp loại</Tag>
+                            <Tag style={{ fontSize: 12 }}>STT, Họ và tên, Tín chỉ, Môn 1-15, TB, Xếp loại</Tag>
                           )}
                         </div>
                       </div>
