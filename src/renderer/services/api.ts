@@ -80,12 +80,12 @@ export const resetUserPassword = (id: number, newPassword: string) =>
 export const getUnits = () =>
   isElectron ? (window as any).electronAPI.invoke('units:get-all') : fetchApi('/units');
 
-export const createUnit = (data: { name: string; type: string; parent_id: number | null }) =>
+export const createUnit = (data: { name: string; type: string; parent_id: number | null; note?: string | null }) =>
   isElectron
     ? (window as any).electronAPI.invoke('units:create', data)
     : fetchApi('/units', { method: 'POST', body: JSON.stringify(data) });
 
-export const updateUnit = (data: { id: number; name: string }) =>
+export const updateUnit = (data: { id: number; name: string; note?: string | null }) =>
   isElectron
     ? (window as any).electronAPI.invoke('units:update', data)
     : fetchApi(`/units/${data.id}`, { method: 'PUT', body: JSON.stringify(data) });
@@ -94,6 +94,19 @@ export const deleteUnit = (id: number) =>
   isElectron
     ? (window as any).electronAPI.invoke('units:delete', id)
     : fetchApi(`/units/${id}`, { method: 'DELETE' });
+
+// ============ Subjects ============
+export const getSubjects = (filters?: { nam_hoc?: number; hoc_ky?: number }) => {
+  if (isElectron) return invoke('subjects:get-all', filters);
+  const q = filters ? '?' + new URLSearchParams(filters as any).toString() : '';
+  return fetchApi(`/subjects${q}`);
+};
+
+export const saveSubjects = (list: { nam_hoc: number; hoc_ky: number; name: string; credits: number }[]) =>
+  isElectron ? invoke('subjects:save', list) : fetchApi('/subjects', { method: 'POST', body: JSON.stringify(list) });
+
+export const deleteSubject = (id: number) =>
+  isElectron ? invoke('subjects:delete', id) : fetchApi(`/subjects/${id}`, { method: 'DELETE' });
 
 // ============ Students ============
 export const getStudents = (filters: { unit_id?: number; search?: string; page?: number; pageSize?: number }) => {

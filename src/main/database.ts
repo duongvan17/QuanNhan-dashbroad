@@ -118,6 +118,7 @@ export async function initTables(): Promise<void> {
       name VARCHAR(255) NOT NULL,
       type ENUM('tieu_doan', 'dai_doi', 'trung_doi', 'tieu_doi') NOT NULL,
       parent_id INT NULL,
+      note TEXT NULL,
       FOREIGN KEY (parent_id) REFERENCES units(id) ON DELETE CASCADE
     )`,
 
@@ -239,6 +240,16 @@ export async function initTables(): Promise<void> {
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE
     )`,
+
+    `CREATE TABLE IF NOT EXISTS subjects (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      nam_hoc INT NOT NULL,
+      hoc_ky INT NOT NULL,
+      name VARCHAR(255) NOT NULL,
+      credits INT NOT NULL DEFAULT 1,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE KEY unique_subject (nam_hoc, hoc_ky, name)
+    )`,
   ];
 
   for (const sql of statements) {
@@ -266,6 +277,8 @@ export async function initTables(): Promise<void> {
     'ALTER TABLE awards ADD COLUMN hinh_thuc_nam_4 VARCHAR(255) NULL',
     'ALTER TABLE awards ADD COLUMN hinh_thuc_toan_khoa VARCHAR(255) NULL',
     'ALTER TABLE discipline_scores ADD COLUMN tuan_5 DECIMAL(4,2) NULL',
+    'ALTER TABLE units ADD COLUMN note TEXT NULL',
+    'CREATE TABLE IF NOT EXISTS subjects (id INT AUTO_INCREMENT PRIMARY KEY, nam_hoc INT NOT NULL, hoc_ky INT NOT NULL, name VARCHAR(255) NOT NULL, credits INT NOT NULL DEFAULT 1, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE KEY unique_subject (nam_hoc, hoc_ky, name))',
   ];
 
   for (const sql of alters) {

@@ -129,8 +129,15 @@ app.use('/api', (req, res, next) => {
 // ============ Units ============
 app.get('/api/units', async (_req, res) => {
   try {
-    const data = await query('SELECT * FROM units ORDER BY type, name');
-    res.json(data);
+    const rows = await query<any[]>('SELECT * FROM units');
+    const typeOrder = { tieu_doan: 1, dai_doi: 2, trung_doi: 3, tieu_doi: 4 };
+    const sorted = rows.sort((a, b) => {
+      const orderA = typeOrder[a.type as keyof typeof typeOrder] || 99;
+      const orderB = typeOrder[b.type as keyof typeof typeOrder] || 99;
+      if (orderA !== orderB) return orderA - orderB;
+      return (a.name || '').localeCompare(b.name || '', undefined, { numeric: true, sensitivity: 'base' });
+    });
+    res.json(sorted);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -138,10 +145,10 @@ app.get('/api/units', async (_req, res) => {
 
 app.post('/api/units', async (req, res) => {
   try {
-    const { name, type, parent_id } = req.body;
+    const { name, type, parent_id, note } = req.body;
     const result = await query<any>(
-      'INSERT INTO units (name, type, parent_id) VALUES (?, ?, ?)',
-      [name, type, parent_id]
+      'INSERT INTO units (name, type, parent_id, note) VALUES (?, ?, ?, ?)',
+      [name, type, parent_id, note ?? null]
     );
     res.json({ id: result.insertId });
   } catch (err: any) {
@@ -151,7 +158,8 @@ app.post('/api/units', async (req, res) => {
 
 app.put('/api/units/:id', async (req, res) => {
   try {
-    await query('UPDATE units SET name = ? WHERE id = ?', [req.body.name, req.params.id]);
+    const { name, note } = req.body;
+    await query('UPDATE units SET name = ?, note = ? WHERE id = ?', [name, note ?? null, req.params.id]);
     res.json({ success: true });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -161,6 +169,54 @@ app.put('/api/units/:id', async (req, res) => {
 app.delete('/api/units/:id', async (req, res) => {
   try {
     await query('DELETE FROM units WHERE id = ?', [req.params.id]);
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============ Subjects ============
+app.get('/api/subjects', async (req, res) => {
+  try {
+    const { nam_hoc, hoc_ky } = req.query;
+    let sql = 'SELECT * FROM subjects WHERE 1=1';
+    const params: any[] = [];
+    if (nam_hoc) {
+      sql += ' AND nam_hoc = ?';
+      params.push(Number(nam_hoc));
+    }
+    if (hoc_ky) {
+      sql += ' AND hoc_ky = ?';
+      params.push(Number(hoc_ky));
+    }
+    sql += ' ORDER BY nam_hoc, hoc_ky, name';
+    const data = await query(sql, params);
+    res.json(data);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/subjects', async (req, res) => {
+  try {
+    const list = Array.isArray(req.body) ? req.body : [req.body];
+    for (const item of list) {
+      await query(
+        `INSERT INTO subjects (nam_hoc, hoc_ky, name, credits)
+         VALUES (?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE credits = VALUES(credits)`,
+        [item.nam_hoc, item.hoc_ky, item.name, item.credits]
+      );
+    }
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/subjects/:id', async (req, res) => {
+  try {
+    await query('DELETE FROM subjects WHERE id = ?', [req.params.id]);
     res.json({ success: true });
   } catch (err: any) {
     res.status(500).json({ error: err.message });

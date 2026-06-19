@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   Card, Button, Upload, Table, Space, Typography, Tabs, Select, App,
-  Alert, Cascader, Divider, Row, Col, Tag,
+  Alert, Cascader, Divider, Row, Col, Tag, Modal,
 } from 'antd';
 import {
   DownloadOutlined, FileExcelOutlined,
@@ -10,7 +10,7 @@ import {
 import {
   getStudents, createStudent, getUnits, getAbsences, getAcademicScores, getDisciplineScores, getAwards,
   saveAcademicScores, saveDisciplineScores, createAbsence, createViolation, saveAward,
-  createUnit,
+  createUnit, getSubjects, saveSubjects,
 } from '../services/api';
 import { useAuth } from '../auth/AuthContext';
 import type { Unit } from '../../shared/types';
@@ -182,6 +182,21 @@ const detectSheetHocKy = (worksheet: any): number | undefined => {
 // ============ Template definitions ============
 const templates = [
   {
+    key: 'subjects',
+    title: 'Danh mục Môn học (File 1)',
+    desc: 'Cấu hình danh mục môn học, tín chỉ tương ứng cho từng năm học, học kỳ',
+    color: '#722ed1',
+    headers: ['STT', 'Năm học', 'Học kỳ', 'Tên môn học', 'Số tín chỉ'],
+    sheetTitle: 'DANH MỤC MÔN HỌC',
+    sheetName: 'Danh mục môn học',
+    sampleRows: [
+      [1, 1, 1, 'Toán cao cấp', 3],
+      [2, 1, 1, 'Vật lý đại cương', 2],
+      [3, 1, 2, 'Hóa học đại cương', 2],
+    ],
+    widths: [8, 12, 12, 28, 12],
+  },
+  {
     key: 'students',
     title: 'Thông tin Học viên',
     desc: 'Họ tên, hình ảnh, ngày sinh, CCCD, ngày cấp, nơi cấp, BHYT, cấp bậc, quê quán, thông tin bố mẹ',
@@ -196,8 +211,8 @@ const templates = [
   },
   {
     key: 'academic',
-    title: 'Điểm học tập',
-    desc: 'Điểm theo môn, tín chỉ, năm/học kỳ, trung bình, xếp loại',
+    title: 'Điểm học tập (File 2)',
+    desc: 'Điểm theo môn học (tự động điền môn học từ danh mục đã nộp ở File 1), tự động tính điểm trung bình',
     color: '#52c41a',
     headers: [],
     sheetTitle: 'ĐIỂM HỌC TẬP CỦA HỌC VIÊN',
@@ -256,6 +271,11 @@ const ExcelPage: React.FC = () => {
   const [importNamHoc, setImportNamHoc] = useState<number>(1);
   const [importHocKy, setImportHocKy] = useState<number>(1);
   const [importResult, setImportResult] = useState<{ success: number; failed: number; details: string[] } | null>(null);
+  
+  const [academicModalOpen, setAcademicModalOpen] = useState(false);
+  const [academicModalNamHoc, setAcademicModalNamHoc] = useState<number>(1);
+  const [academicModalHocKy, setAcademicModalHocKy] = useState<number>(1);
+  const [academicModalUnitId, setAcademicModalUnitId] = useState<number | undefined>();
   const [importSheets, setImportSheets] = useState<{
     name: string;
     headers: string[];
@@ -313,7 +333,7 @@ const ExcelPage: React.FC = () => {
     ws.addRow([]);
     ws.addRow([]);
 
-    // Row 5-7: Đơn vị
+    // Row 5-8: Đơn vị
     ws.mergeCells(5, 1, 5, colCount);
     ws.getCell('A5').value = 'TIỂU ĐOÀN 1';
     ws.getCell('A5').font = { bold: true, size: 12 };
@@ -323,6 +343,9 @@ const ExcelPage: React.FC = () => {
     ws.mergeCells(7, 1, 7, colCount);
     ws.getCell('A7').value = 'TRUNG ĐỘI 1';
     ws.getCell('A7').font = { bold: true, size: 12 };
+    ws.mergeCells(8, 1, 8, colCount);
+    ws.getCell('A8').value = 'TIỂU ĐỘI 1';
+    ws.getCell('A8').font = { bold: true, size: 12 };
 
     // Extra rows (NĂM NHẤT, etc.)
     const extra = (template as any).extraRows as string[][] | undefined;
@@ -342,9 +365,14 @@ const ExcelPage: React.FC = () => {
       cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
     });
 
-    // Empty rows (no sample data)
-    for (let i = 0; i < 30; i++) {
-      const r = ws.addRow(template.headers.map((_: any, idx: number) => idx === 0 ? i + 1 : ''));
+    // Rows (sample data or empty rows)
+    const rowCountToCreate = Math.max(30, template.sampleRows ? template.sampleRows.length : 0);
+    for (let i = 0; i < rowCountToCreate; i++) {
+      let rowData = template.sampleRows && template.sampleRows[i] ? template.sampleRows[i] : [];
+      if (rowData.length === 0) {
+        rowData = template.headers.map((_: any, idx: number) => idx === 0 ? i + 1 : '');
+      }
+      const r = ws.addRow(rowData);
       r.eachCell((cell: any) => cellBorder(cell));
     }
 
@@ -371,13 +399,31 @@ const ExcelPage: React.FC = () => {
     }
   };
 
-  // ========== Build sheet Điểm học tập (format đặc biệt theo gốc) ==========
-  const buildAcademicSheet = (ws: any, existingSubjects: { name: string; credits: number }[] = []) => {
-    const subjectsList = existingSubjects.length > 0 
-      ? existingSubjects 
-      : Array.from({ length: 8 }, (_, i) => ({ name: `Tên môn ${i + 1}`, credits: 1 }));
+  const colIndexToLabel = (col: number): string => {
+    let temp = col;
+    let label = '';
+    while (temp > 0) {
+      let rem = (temp - 1) % 26;
+      label = String.fromCharCode(65 + rem) + label;
+      temp = Math.floor((temp - 1) / 26);
+    }
+    return label;
+  };
 
-    const subjectCount = subjectsList.length;
+  // ========== Build sheet Điểm học tập (format đặc biệt theo gốc) ==========
+  const buildAcademicSheet = (
+    ws: any,
+    subjectsList: { name: string; credits: number }[] = [],
+    namHoc: number = 1,
+    hocKy: number = 1,
+    studentsList: any[] = [],
+    unitHierarchy: { tieuDoan?: string; daiDoi?: string; trungDoi?: string; tieuDoi?: string; note?: string } = {}
+  ) => {
+    const list = subjectsList.length > 0 
+      ? subjectsList 
+      : Array.from({ length: 8 }, (_, i) => ({ name: `Môn học ${i + 1}`, credits: 2 }));
+
+    const subjectCount = list.length;
     const colCount = 2 + subjectCount + 2; // STT + Họ tên + subjects + TB + Xếp loại
 
     // Title
@@ -389,79 +435,129 @@ const ExcelPage: React.FC = () => {
     ws.addRow([]); ws.addRow([]); ws.addRow([]);
 
     // Đơn vị
-    ws.mergeCells(5, 1, 5, colCount);
-    ws.getCell('A5').value = 'TIỂU ĐOÀN 1';
-    ws.getCell('A5').font = { bold: true, size: 12 };
-    ws.mergeCells(6, 1, 6, colCount);
-    ws.getCell('A6').value = 'ĐẠI ĐỘI 2';
-    ws.getCell('A6').font = { bold: true, size: 12 };
-    ws.mergeCells(7, 1, 7, colCount);
-    ws.getCell('A7').value = 'TRUNG ĐỘI 1';
-    ws.getCell('A7').font = { bold: true, size: 12 };
+    const tdText = unitHierarchy.tieuDoan ? `TIỂU ĐOÀN: ${unitHierarchy.tieuDoan.toUpperCase()}` : 'TIỂU ĐOÀN ...';
+    const r5 = ws.addRow([tdText]);
+    r5.getCell(1).font = { bold: true, size: 12 };
+    ws.mergeCells(r5.number, 1, r5.number, colCount);
+
+    const ddText = unitHierarchy.daiDoi ? `ĐẠI ĐỘI: ${unitHierarchy.daiDoi.toUpperCase()}` : 'ĐẠI ĐỘI ...';
+    const r6 = ws.addRow([ddText]);
+    r6.getCell(1).font = { bold: true, size: 12 };
+    ws.mergeCells(r6.number, 1, r6.number, colCount);
+
+    const specText = unitHierarchy.note ? ` (CHUYÊN NGÀNH: ${unitHierarchy.note.toUpperCase()})` : '';
+    const trdText = unitHierarchy.trungDoi ? `TRUNG ĐỘI: ${unitHierarchy.trungDoi.toUpperCase()}${specText}` : 'TRUNG ĐỘI ...';
+    const r7 = ws.addRow([trdText]);
+    r7.getCell(1).font = { bold: true, size: 12 };
+    ws.mergeCells(r7.number, 1, r7.number, colCount);
+
+    const tiText = unitHierarchy.tieuDoi ? `TIỂU ĐỘI: ${unitHierarchy.tieuDoi.toUpperCase()}` : 'TIỂU ĐỘI ...';
+    const r8 = ws.addRow([tiText]);
+    r8.getCell(1).font = { bold: true, size: 12 };
+    ws.mergeCells(r8.number, 1, r8.number, colCount);
 
     // Empty rows
     ws.addRow([]); ws.addRow([]);
 
-    // NĂM NHẤT
-    ws.mergeCells(10, 1, 10, colCount);
-    ws.getCell('A10').value = 'NĂM NHẤT';
-    ws.getCell('A10').font = { bold: true, size: 12 };
+    // Năm học & Học kỳ
+    const namHocWords = ['NĂM NHẤT', 'NĂM HAI', 'NĂM BA', 'NĂM BỐN'];
+    const hocKyWords = ['HỌC KỲ I', 'HỌC KỲ II'];
+    const rYear = ws.addRow([namHocWords[namHoc - 1] || `NĂM HỌC ${namHoc}`]);
+    rYear.getCell(1).font = { bold: true, size: 12 };
+    ws.mergeCells(rYear.number, 1, rYear.number, colCount);
 
-    // HỌC KỲ I
-    ws.mergeCells(11, 1, 11, colCount);
-    ws.getCell('A11').value = 'HỌC KỲ I';
-    ws.getCell('A11').font = { bold: true, size: 12 };
+    const rSem = ws.addRow([hocKyWords[hocKy - 1] || `HỌC KỲ ${hocKy}`]);
+    rSem.getCell(1).font = { bold: true, size: 12 };
+    ws.mergeCells(rSem.number, 1, rSem.number, colCount);
 
-    // Sub-header row: MÔN HỌC, HC, ..., Trung bình, Xếp loại
-    const subHeaders: any[] = new Array(colCount).fill(null);
-    subHeaders[2] = 'MÔN HỌC';
-    subHeaders[3] = 'HC';
-    subHeaders[2 + subjectCount] = 'Trung bình';
-    subHeaders[2 + subjectCount + 1] = 'Xếp loại';
-    const shr = ws.addRow(subHeaders);
-    shr.eachCell((cell: any, colNumber: number) => {
-      if (cell.value) headerStyle(cell);
+    ws.addRow([]); // Row 13 empty
+
+    // Header Row (Row 14): STT, Họ và tên, Subject Names, Trung bình, Xếp loại
+    const headerRowValues = new Array(colCount).fill(null);
+    headerRowValues[0] = 'STT';
+    headerRowValues[1] = 'Họ và tên';
+    list.forEach((sub, idx) => {
+      headerRowValues[2 + idx] = sub.name;
     });
-
-    // Header row: STT, Họ và tên, các cột tên môn, Trung bình, Xếp loại.
-    const mainHeaders: any[] = new Array(colCount).fill(null);
-    mainHeaders[0] = 'STT';
-    mainHeaders[1] = 'Họ và tên';
-    subjectsList.forEach((sub, idx) => {
-      mainHeaders[2 + idx] = `${sub.name} (${sub.credits}tc)`;
-    });
-    mainHeaders[2 + subjectCount] = 'Trung bình';
-    mainHeaders[2 + subjectCount + 1] = 'Xếp loại';
-    const mhr = ws.addRow(mainHeaders);
-    mhr.height = 32;
+    headerRowValues[2 + subjectCount] = 'Trung bình';
+    headerRowValues[2 + subjectCount + 1] = 'Xếp loại';
+    
+    const mhr = ws.addRow(headerRowValues);
+    mhr.height = 28;
     mhr.eachCell((cell: any) => {
       headerStyle(cell);
       cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
     });
 
+    // Credit Row (Row 15): '', 'Số tín chỉ', Credit numbers, '', ''
+    const creditRowValues = new Array(colCount).fill(null);
+    creditRowValues[0] = '';
+    creditRowValues[1] = 'Số tín chỉ';
+    list.forEach((sub, idx) => {
+      creditRowValues[2 + idx] = sub.credits;
+    });
+    creditRowValues[2 + subjectCount] = '';
+    creditRowValues[2 + subjectCount + 1] = '';
+    
+    const cr = ws.addRow(creditRowValues);
+    cr.height = 24;
+    cr.eachCell((cell: any) => {
+      headerStyle(cell);
+      cell.alignment = { horizontal: 'center', vertical: 'middle' };
+    });
+
     // Note row
-    const noteR = ws.addRow(['', 'CHÚ Ý: Sửa hoặc thêm các cột "Tên môn (Số_tc)" thành môn học thật (vd "Toán cao cấp (3tc)") trước khi import']);
+    const noteR = ws.addRow(['', 'CHÚ Ý: Nhập điểm trực tiếp cho học viên dưới đây. Các cột "Trung bình" và "Xếp loại" sẽ tự động tính điểm theo công thức.']);
     ws.mergeCells(noteR.number, 2, noteR.number, colCount);
     noteR.getCell(2).font = { italic: true, color: { argb: 'FF888888' }, size: 11 };
 
-    // Empty rows
-    for (let i = 0; i < 30; i++) {
+    // Fill students or empty placeholder rows
+    const studentsToFill = studentsList.length > 0 
+      ? studentsList 
+      : Array.from({ length: 30 }, (_, i) => ({ ho_ten: '' }));
+
+    studentsToFill.forEach((student, i) => {
       const row = new Array(colCount).fill('');
       row[0] = i + 1;
+      row[1] = student.ho_ten || '';
+      
       const r = ws.addRow(row);
       r.eachCell((cell: any) => cellBorder(cell));
-    }
+
+      const rowNum = r.number;
+      const lastColLet = colIndexToLabel(2 + subjectCount);
+      const avgColLet = colIndexToLabel(2 + subjectCount + 1);
+      const rankColLet = colIndexToLabel(2 + subjectCount + 2);
+
+      // Average formula
+      const avgCell = ws.getCell(`${avgColLet}${rowNum}`);
+      avgCell.value = {
+        formula: `SUMPRODUCT(C${rowNum}:${lastColLet}${rowNum}, $C$${cr.number}:$${lastColLet}$${cr.number}) / SUM($C$${cr.number}:$${lastColLet}$${cr.number})`,
+        result: 0
+      };
+
+      // Rank formula
+      const rankCell = ws.getCell(`${rankColLet}${rowNum}`);
+      rankCell.value = {
+        formula: `IF(${avgColLet}${rowNum}>=8, "Giỏi", IF(${avgColLet}${rowNum}>=7.2, "Khá", IF(${avgColLet}${rowNum}>=5, "Trung bình", "Yếu")))`,
+        result: ''
+      };
+    });
 
     // Column widths
     ws.getColumn(1).width = 8;
     ws.getColumn(2).width = 28;
     for (let i = 3; i <= 2 + subjectCount; i++) ws.getColumn(i).width = 16;
-    ws.getColumn(2 + subjectCount).width = 12;
-    ws.getColumn(2 + subjectCount + 1).width = 12;
+    ws.getColumn(2 + subjectCount + 1).width = 14;
+    ws.getColumn(2 + subjectCount + 2).width = 14;
   };
 
   // ========== DOWNLOAD TEMPLATE ==========
   const handleDownloadTemplate = async (template: typeof templates[0]) => {
+    if (template.key === 'academic') {
+      setAcademicModalOpen(true);
+      return;
+    }
     try {
       const ExcelJS = await import('exceljs');
       const workbook = new ExcelJS.Workbook();
@@ -469,17 +565,87 @@ const ExcelPage: React.FC = () => {
 
       const ws = workbook.addWorksheet(template.sheetName);
 
-      if ((template as any).custom) {
-        const existingSubjects = await fetchExistingSubjects();
-        buildAcademicSheet(ws, existingSubjects);
-      } else {
-        buildSheet(ws, template, ExcelJS);
-      }
+      buildSheet(ws, template, ExcelJS);
 
       await downloadWorkbook(workbook, `template_${template.key}.xlsx`);
       message.success(`Đã tải template "${template.title}"`);
     } catch (err: any) {
       message.error('Lỗi: ' + err.message);
+    }
+  };
+
+  const handleDownloadAcademicTemplate = async () => {
+    setAcademicModalOpen(false);
+    try {
+      const ExcelJS = await import('exceljs');
+      const workbook = new ExcelJS.Workbook();
+      workbook.creator = 'Quản Lý Quân Nhân';
+
+      const ws = workbook.addWorksheet('Điểm học tập');
+
+      // 1. Fetch subjects for selected year & semester
+      const subjectsList = await getSubjects({ nam_hoc: academicModalNamHoc, hoc_ky: academicModalHocKy });
+
+      // 2. Fetch students for selected platoon (if any) and sort alphabetically
+      let studentsList: any[] = [];
+      if (academicModalUnitId) {
+        const res = await getStudents({ unit_id: academicModalUnitId, pageSize: 100000 });
+        studentsList = res.data || [];
+        // Sort students alphabetically by Vietnamese name
+        studentsList.sort((a: any, b: any) => {
+          const getParts = (fullName: string) => {
+            const trimmed = fullName.trim().replace(/\s+/g, ' ');
+            const parts = trimmed.split(' ');
+            const firstName = parts.length > 0 ? parts[parts.length - 1] : '';
+            const lastName = parts.slice(0, parts.length - 1).join(' ');
+            return { firstName, lastName };
+          };
+          const partsA = getParts(a.ho_ten || '');
+          const partsB = getParts(b.ho_ten || '');
+          const cmp = partsA.firstName.localeCompare(partsB.firstName, 'vi', { sensitivity: 'base' });
+          if (cmp !== 0) return cmp;
+          return partsA.lastName.localeCompare(partsB.lastName, 'vi', { sensitivity: 'base' });
+        });
+      }
+
+      // 3. Resolve unit hierarchy names for title rows
+      const unitHierarchy: any = {};
+      if (academicModalUnitId) {
+        const unit = units.find(u => u.id === academicModalUnitId);
+        if (unit) {
+          if (unit.type === 'tieu_doi') {
+            unitHierarchy.tieuDoi = unit.name;
+            const trd = units.find(u => u.id === unit.parent_id);
+            if (trd) {
+              unitHierarchy.trungDoi = trd.name;
+              unitHierarchy.note = trd.note;
+              const dd = units.find(u => u.id === trd.parent_id);
+              if (dd) {
+                unitHierarchy.daiDoi = dd.name;
+                const td = units.find(u => u.id === dd.parent_id);
+                if (td) unitHierarchy.tieuDoan = td.name;
+              }
+            }
+          } else if (unit.type === 'trung_doi') {
+            unitHierarchy.trungDoi = unit.name;
+            unitHierarchy.note = unit.note;
+            const dd = units.find(u => u.id === unit.parent_id);
+            if (dd) {
+              unitHierarchy.daiDoi = dd.name;
+              const td = units.find(u => u.id === dd.parent_id);
+              if (td) unitHierarchy.tieuDoan = td.name;
+            }
+          }
+        }
+      }
+
+      // 4. Build sheet
+      buildAcademicSheet(ws, subjectsList, academicModalNamHoc, academicModalHocKy, studentsList, unitHierarchy);
+
+      await downloadWorkbook(workbook, `template_diem_hoc_tap.xlsx`);
+      message.success('Đã tải template Điểm học tập');
+    } catch (err: any) {
+      message.error('Lỗi sinh template: ' + err.message);
     }
   };
 
@@ -490,19 +656,18 @@ const ExcelPage: React.FC = () => {
       const workbook = new ExcelJS.Workbook();
       workbook.creator = 'Quản Lý Quân Nhân';
 
-      const existingSubjects = await fetchExistingSubjects();
-
       for (const template of templates) {
         const ws = workbook.addWorksheet(template.sheetName);
-        if ((template as any).custom) {
-          buildAcademicSheet(ws, existingSubjects);
+        if (template.key === 'academic') {
+          const defaultSubjects = await getSubjects({ nam_hoc: 1, hoc_ky: 1 });
+          buildAcademicSheet(ws, defaultSubjects, 1, 1, [], {});
         } else {
           buildSheet(ws, template, ExcelJS);
         }
       }
 
       await downloadWorkbook(workbook, 'template_tat_ca.xlsx');
-      message.success('Đã tải template tất cả (5 sheets)');
+      message.success('Đã tải template tất cả (6 sheets)');
     } catch (err: any) {
       message.error('Lỗi: ' + err.message);
     }
@@ -725,6 +890,52 @@ const ExcelPage: React.FC = () => {
 
       const targetNamHoc = sheet.detectedNamHoc || importNamHoc;
       const targetHocKy = sheet.detectedHocKy || importHocKy;
+
+      // ====== Sheet: Danh mục Môn học (File 1) ======
+      if ((sn.includes('danh mục') || sn.includes('môn học') || sn.includes('subject')) && !sn.includes('học tập') && !sn.includes('điểm học')) {
+        const namHocCol = h.find((c) => c.toLowerCase().includes('năm học') || c.toLowerCase().includes('nam_hoc') || c.toLowerCase().includes('nam hoc'));
+        const hocKyCol = h.find((c) => c.toLowerCase().includes('học kỳ') || c.toLowerCase().includes('hoc_ky') || c.toLowerCase().includes('hoc ky') || c.toLowerCase().includes('hk'));
+        const monHocCol = h.find((c) => c.toLowerCase().includes('tên môn') || c.toLowerCase().includes('môn học') || c.toLowerCase().includes('mon_hoc') || c.toLowerCase().includes('mon hoc') || c.toLowerCase().includes('môn'));
+        const tinChiCol = h.find((c) => c.toLowerCase().includes('tín chỉ') || c.toLowerCase().includes('tin_chi') || c.toLowerCase().includes('tin chi') || c.toLowerCase().includes('tín') || c.toLowerCase().includes('tc'));
+
+        let sheetOk = 0;
+        const rowsToSave: { nam_hoc: number; hoc_ky: number; name: string; credits: number }[] = [];
+        for (const row of sheet.data) {
+          const namHocVal = row[namHocCol!];
+          const hocKyVal = row[hocKyCol!];
+          const nameVal = str(row[monHocCol!]);
+          const creditsVal = row[tinChiCol!];
+
+          if (!nameVal) continue;
+          const namHoc = Number(namHocVal);
+          const hocKy = Number(hocKyVal);
+          const credits = Number(creditsVal);
+
+          if (isNaN(namHoc) || isNaN(hocKy) || isNaN(credits)) {
+            failed++;
+            continue;
+          }
+
+          rowsToSave.push({
+            nam_hoc: namHoc,
+            hoc_ky: hocKy,
+            name: nameVal,
+            credits: credits,
+          });
+        }
+
+        if (rowsToSave.length > 0) {
+          try {
+            await saveSubjects(rowsToSave);
+            sheetOk = rowsToSave.length;
+            success += sheetOk;
+          } catch (err) {
+            failed += rowsToSave.length;
+          }
+        }
+        details.push(`Danh mục môn học: ${sheetOk} thành công`);
+        continue;
+      }
 
       // ====== Sheet: Thông tin học viên ======
       if (sn.includes('thông tin') || sn.includes('học viên')) {
@@ -1616,6 +1827,58 @@ const ExcelPage: React.FC = () => {
           ),
         },
       ].filter((t) => isAdmin || t.key !== 'import')} />
+
+      <Modal
+        title="Cấu hình template Điểm học tập"
+        open={academicModalOpen}
+        onOk={handleDownloadAcademicTemplate}
+        onCancel={() => setAcademicModalOpen(false)}
+        okText="Tải template"
+        cancelText="Hủy"
+        destroyOnClose
+      >
+        <Space direction="vertical" style={{ width: '100%' }} size="middle">
+          <div>
+            <div style={{ marginBottom: 8 }}><Text strong>Năm học:</Text></div>
+            <Select
+              style={{ width: '100%' }}
+              value={academicModalNamHoc}
+              onChange={setAcademicModalNamHoc}
+              options={[
+                { value: 1, label: 'Năm thứ nhất' },
+                { value: 2, label: 'Năm thứ hai' },
+                { value: 3, label: 'Năm thứ ba' },
+                { value: 4, label: 'Năm thứ tư' },
+              ]}
+            />
+          </div>
+          <div>
+            <div style={{ marginBottom: 8 }}><Text strong>Học kỳ:</Text></div>
+            <Select
+              style={{ width: '100%' }}
+              value={academicModalHocKy}
+              onChange={setAcademicModalHocKy}
+              options={[
+                { value: 1, label: 'Học kỳ I' },
+                { value: 2, label: 'Học kỳ II' },
+              ]}
+            />
+          </div>
+          <div>
+            <div style={{ marginBottom: 8 }}><Text strong>Đơn vị (Trung đội/Tiểu đội) - Tùy chọn:</Text></div>
+            <Select
+              style={{ width: '100%' }}
+              placeholder="Chọn đơn vị để tự động điền danh sách học viên"
+              options={getUnitSelectOptions()}
+              value={academicModalUnitId}
+              onChange={setAcademicModalUnitId}
+              allowClear
+              showSearch
+              optionFilterProp="label"
+            />
+          </div>
+        </Space>
+      </Modal>
     </div>
   );
 };

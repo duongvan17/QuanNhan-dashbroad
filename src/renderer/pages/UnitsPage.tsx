@@ -77,6 +77,7 @@ const UnitsPage: React.FC = () => {
           <Space>
             <span style={{ fontWeight: u.type === 'tieu_doan' ? 600 : 400 }}>
               {unitTypeLabels[u.type]}: {u.name}
+              {u.note && <span style={{ color: '#8c8c8c', fontStyle: 'italic', marginLeft: 8 }}>({u.note})</span>}
             </span>
             <Tag color={tagColor} style={{ marginInlineStart: 4 }}>
               <UserOutlined /> {count} HV
@@ -128,7 +129,7 @@ const UnitsPage: React.FC = () => {
 
   const openEdit = (unit: Unit) => {
     setEditingUnit(unit);
-    form.setFieldsValue({ name: unit.name, type: unit.type, parent_id: unit.parent_id });
+    form.setFieldsValue({ name: unit.name, type: unit.type, parent_id: unit.parent_id, note: unit.note });
     setModalOpen(true);
   };
 
@@ -136,12 +137,13 @@ const UnitsPage: React.FC = () => {
     try {
       const values = await form.validateFields();
       if (editingUnit) {
-        await updateUnit({ id: editingUnit.id, name: values.name });
+        await updateUnit({ id: editingUnit.id, name: values.name, note: values.note });
       } else {
         await createUnit({
           name: values.name,
           type: values.type,
           parent_id: values.parent_id || null,
+          note: values.note || null,
         });
       }
       message.success(editingUnit ? 'Đã cập nhật' : 'Đã thêm');
@@ -275,6 +277,10 @@ const UnitsPage: React.FC = () => {
 
           <Form.Item name="name" label="Tên đơn vị" rules={[{ required: true, message: 'Nhập tên' }]}>
             <Input placeholder="VD: Tiểu đoàn 1" />
+          </Form.Item>
+
+          <Form.Item name="note" label="Ghi chú (Chuyên ngành của Trung đội)">
+            <Input.TextArea placeholder="VD: Công binh, Thông tin, Biên phòng..." rows={2} />
           </Form.Item>
         </Form>
       </Modal>

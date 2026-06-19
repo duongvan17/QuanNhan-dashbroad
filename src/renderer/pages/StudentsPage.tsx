@@ -14,6 +14,34 @@ import dayjs from 'dayjs';
 
 const { Title } = Typography;
 
+const compareVietnameseNames = (a: string, b: string): number => {
+  const getParts = (fullName: string) => {
+    const trimmed = fullName.trim().replace(/\s+/g, ' ');
+    const parts = trimmed.split(' ');
+    const firstName = parts.length > 0 ? parts[parts.length - 1] : '';
+    const lastName = parts.slice(0, parts.length - 1).join(' ');
+    return { firstName, lastName };
+  };
+  const partsA = getParts(a);
+  const partsB = getParts(b);
+  const cmp = partsA.firstName.localeCompare(partsB.firstName, 'vi', { sensitivity: 'base' });
+  if (cmp !== 0) return cmp;
+  return partsA.lastName.localeCompare(partsB.lastName, 'vi', { sensitivity: 'base' });
+};
+
+const getStudentPlatoon = (student: any, allUnits: Unit[]) => {
+  const unit = allUnits.find(u => u.id === student.unit_id);
+  if (!unit) return { id: 0, name: 'Chưa phân trung đội', note: '' };
+  if (unit.type === 'trung_doi') return { id: unit.id, name: unit.name, note: unit.note || '' };
+  if (unit.type === 'tieu_doi') {
+    const parent = allUnits.find(p => p.id === unit.parent_id);
+    if (parent && parent.type === 'trung_doi') {
+      return { id: parent.id, name: parent.name, note: parent.note || '' };
+    }
+  }
+  return { id: student.unit_id, name: unit.name, note: unit.note || '' };
+};
+
 const StudentsPage: React.FC = () => {
   const { message } = App.useApp();
   const { isAdmin } = useAuth();
@@ -21,7 +49,7 @@ const StudentsPage: React.FC = () => {
   const [units, setUnits] = useState<Unit[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [filters, setFilters] = useState<any>({ page: 1, pageSize: 50 });
+  const [filters, setFilters] = useState<any>({ page: 1, pageSize: 10000 });
   const [modalOpen, setModalOpen] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<any>(null);
@@ -191,12 +219,41 @@ const StudentsPage: React.FC = () => {
     }
   };
 
+  // 1. Group students by platoon
+  const groupedStudentsMap = new Map<number, { id: number; name: string; note: string; list: any[] }>();
+  
+  students.forEach((student) => {
+    const plat = getStudentPlatoon(student, units);
+    if (!groupedStudentsMap.has(plat.id)) {
+      groupedStudentsMap.set(plat.id, { id: plat.id, name: plat.name, note: plat.note, list: [] });
+    }
+    groupedStudentsMap.get(plat.id)!.list.push(student);
+  });
+
+  // 2. Sort students within each platoon alphabetically by Vietnamese name
+  groupedStudentsMap.forEach((group) => {
+    group.list.sort((a, b) => compareVietnameseNames(a.ho_ten || '', b.ho_ten || ''));
+  });
+
+  // 3. Convert map to list and sort the platoons naturally
+  const groupedList = Array.from(groupedStudentsMap.values()).sort((a, b) => {
+    if (a.id === 0) return 1;
+    if (b.id === 0) return -1;
+    return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
+  });
+
   const handleCopyTable = () => {
     const headers = ['STT', 'Họ và tên', 'Ngày sinh', 'CCCD', 'Ngày cấp CCCD', 'Nơi cấp CCCD', 'BHYT', 'Cấp bậc', 'Chức vụ', 'Quê quán', 'Đơn vị'];
-    const rows = students.map((s, i) => [
-      i + 1, s.ho_ten, s.ngay_sinh || '', s.cccd || '', s.cccd_ngay_cap || '', s.cccd_noi_cap || '', s.bhyt || '', s.cap_bac || '',
-      s.chuc_vu || '', s.que_quan || '', s.unit_name || '',
-    ]);
+    const rows: any[] = [];
+    let globalIndex = 1;
+    groupedList.forEach((group) => {
+      group.list.forEach((s) => {
+        rows.push([
+          globalIndex++, s.ho_ten, s.ngay_sinh || '', s.cccd || '', s.cccd_ngay_cap || '', s.cccd_noi_cap || '', s.bhyt || '', s.cap_bac || '',
+          s.chuc_vu || '', s.que_quan || '', s.unit_name || '',
+        ]);
+      });
+    });
     const text = [headers, ...rows].map((r) => r.join('\t')).join('\n');
     navigator.clipboard.writeText(text);
     message.success('Đã copy bảng - paste vào Excel');
@@ -206,7 +263,7 @@ const StudentsPage: React.FC = () => {
     {
       title: 'STT',
       width: 60,
-      render: (_: any, __: any, index: number) => (filters.page - 1) * filters.pageSize + index + 1,
+      render: (_: any, __: any, index: number) => index + 1,
     },
     {
       title: 'Ảnh',
@@ -291,24 +348,37 @@ const StudentsPage: React.FC = () => {
         </Space>
       </Space>
 
-      <Card styles={{ body: { padding: 0 } }}>
-        <Table
-          columns={columns}
-          dataSource={students}
-          rowKey="id"
-          loading={loading}
-          size="middle"
-          scroll={{ x: 1180 }}
-          pagination={{
-            current: filters.page,
-            pageSize: filters.pageSize,
-            total,
-            showSizeChanger: true,
-            showTotal: (t) => `Tổng: ${t} học viên`,
-            onChange: (page, pageSize) => setFilters((prev: any) => ({ ...prev, page, pageSize })),
-          }}
-        />
-      </Card>
+      {loading ? (
+        <Card loading={true} />
+      ) : groupedList.length > 0 ? (
+        groupedList.map((group) => (
+          <Card
+            key={group.id}
+            title={
+              <Space>
+                <span style={{ fontSize: 16, fontWeight: 600, color: '#1677ff' }}>{group.name}</span>
+                {group.note && <span style={{ fontSize: 13, color: '#8c8c8c', fontStyle: 'italic' }}>(Chuyên ngành: {group.note})</span>}
+                <Tag color="blue">{group.list.length} học viên</Tag>
+              </Space>
+            }
+            style={{ marginBottom: 20 }}
+            styles={{ body: { padding: 0 } }}
+          >
+            <Table
+              columns={columns}
+              dataSource={group.list}
+              rowKey="id"
+              size="middle"
+              scroll={{ x: 1180 }}
+              pagination={false}
+            />
+          </Card>
+        ))
+      ) : (
+        <Card>
+          <Empty description="Không có học viên nào" />
+        </Card>
+      )}
 
       {/* Modal Thêm/Sửa */}
       <Modal

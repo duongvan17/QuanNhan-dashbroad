@@ -100,24 +100,64 @@ export function registerIpcHandlers(): void {
 
   // ============ Units ============
   handle(IPC.UNITS_GET_ALL, 'auth', async () => {
-    return query('SELECT * FROM units ORDER BY type, name');
+    const rows = await query<any[]>('SELECT * FROM units');
+    const typeOrder = { tieu_doan: 1, dai_doi: 2, trung_doi: 3, tieu_doi: 4 };
+    return rows.sort((a, b) => {
+      const orderA = typeOrder[a.type as keyof typeof typeOrder] || 99;
+      const orderB = typeOrder[b.type as keyof typeof typeOrder] || 99;
+      if (orderA !== orderB) return orderA - orderB;
+      return (a.name || '').localeCompare(b.name || '', undefined, { numeric: true, sensitivity: 'base' });
+    });
   });
 
-  handle(IPC.UNITS_CREATE, 'admin', async (_event, data: { name: string; type: string; parent_id: number | null }) => {
+  handle(IPC.UNITS_CREATE, 'admin', async (_event, data: { name: string; type: string; parent_id: number | null; note?: string | null }) => {
     const result = await query<any>(
-      'INSERT INTO units (name, type, parent_id) VALUES (?, ?, ?)',
-      [data.name, data.type, data.parent_id]
+      'INSERT INTO units (name, type, parent_id, note) VALUES (?, ?, ?, ?)',
+      [data.name, data.type, data.parent_id, data.note ?? null]
     );
     return { id: result.insertId };
   });
 
-  handle(IPC.UNITS_UPDATE, 'admin', async (_event, data: { id: number; name: string }) => {
-    await query('UPDATE units SET name = ? WHERE id = ?', [data.name, data.id]);
+  handle(IPC.UNITS_UPDATE, 'admin', async (_event, data: { id: number; name: string; note?: string | null }) => {
+    await query('UPDATE units SET name = ?, note = ? WHERE id = ?', [data.name, data.note ?? null, data.id]);
     return { success: true };
   });
 
   handle(IPC.UNITS_DELETE, 'admin', async (_event, id: number) => {
     await query('DELETE FROM units WHERE id = ?', [id]);
+    return { success: true };
+  });
+
+  // ============ Subjects ============
+  handle('subjects:get-all', 'auth', async (_event, filters?: { nam_hoc?: number; hoc_ky?: number }) => {
+    let sql = 'SELECT * FROM subjects WHERE 1=1';
+    const params: any[] = [];
+    if (filters?.nam_hoc) {
+      sql += ' AND nam_hoc = ?';
+      params.push(Number(filters.nam_hoc));
+    }
+    if (filters?.hoc_ky) {
+      sql += ' AND hoc_ky = ?';
+      params.push(Number(filters.hoc_ky));
+    }
+    sql += ' ORDER BY nam_hoc, hoc_ky, name';
+    return query(sql, params);
+  });
+
+  handle('subjects:save', 'admin', async (_event, list: { nam_hoc: number; hoc_ky: number; name: string; credits: number }[]) => {
+    for (const item of list) {
+      await query(
+        `INSERT INTO subjects (nam_hoc, hoc_ky, name, credits)
+         VALUES (?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE credits = VALUES(credits)`,
+        [item.nam_hoc, item.hoc_ky, item.name, item.credits]
+      );
+    }
+    return { success: true };
+  });
+
+  handle('subjects:delete', 'admin', async (_event, id: number) => {
+    await query('DELETE FROM subjects WHERE id = ?', [id]);
     return { success: true };
   });
 
